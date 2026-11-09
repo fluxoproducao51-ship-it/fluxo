@@ -78,7 +78,7 @@ function ListaCadastro({lista}) {
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end'}}>
         <div>
           <h2 className="section-title">{atual.label}</h2>
-          <p className="page-sub" style={{fontSize: 14}}>{atual.hint} Itens inativos somem das listas, mas o histórico continua.</p>
+          {lista !== 'materiais' && <p className="page-sub" style={{fontSize: 14}}>{atual.hint} Itens inativos somem das listas, mas o histórico continua.</p>}
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
           <label className="search" style={{height: 40, maxWidth: 220}}>

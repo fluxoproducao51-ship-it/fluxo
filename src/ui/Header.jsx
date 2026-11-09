@@ -14,6 +14,7 @@ const GROUPS = [
       {id: 'crm', label: 'Funil de vendas', icon: 'filter'},
       {id: 'crmempresas', label: 'Empresas', icon: 'factory'},
       {id: 'crmatividades', label: 'Atividades', icon: 'bell'},
+      {id: 'crmhistorico', label: 'Histórico de atividades', icon: 'layers'},
       {id: 'crmindicadores', label: 'Indicadores de vendas', icon: 'chart'}
     ]
   },

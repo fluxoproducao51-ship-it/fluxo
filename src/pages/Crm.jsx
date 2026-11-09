@@ -877,6 +877,111 @@ export function CrmAtividades() {
   );
 }
 
+/* ---------- Activity history ---------- */
+
+const dataDoHistorico = a => a.concluidaEm ?? a.vencimento ?? '';
+
+export function CrmHistorico() {
+  const {crm, go} = useStore();
+  const [busca, setBusca] = useState('');
+  const [tipo, setTipo] = useState('');
+  const [empresaId, setEmpresaId] = useState('');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+
+  const realizadas = crm.atividades.filter(a => a.concluida);
+  const q = busca.trim().toUpperCase();
+  const lista = realizadas
+    .map(a => ({
+      ...a,
+      data: dataDoHistorico(a),
+      empresa: crm.empresas.find(e => e.id === a.empresaId),
+      negocio: crm.negocios.find(n => n.id === a.negocioId)
+    }))
+    .filter(a => !tipo || a.tipo === tipo)
+    .filter(a => !empresaId || a.empresaId === empresaId)
+    .filter(a => !de || a.data >= de)
+    .filter(a => !ate || a.data <= ate)
+    .filter(a => !q || [a.titulo, a.descricao, a.empresa?.nome, a.negocio?.titulo].some(t => t?.toUpperCase().includes(q)))
+    .sort((a, b) => b.data.localeCompare(a.data));
+
+  const empresas = Object.fromEntries(
+    [...crm.empresas]
+      .filter(e => realizadas.some(a => a.empresaId === e.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map(e => [e.id, e.nome])
+  );
+
+  return (
+    <main className="page">
+      <div>
+        <h1 className="page-title">Histórico de atividades</h1>
+        <p className="page-sub">
+          Tudo que já foi feito pelo comercial: {realizadas.length} {realizadas.length === 1 ? 'registro' : 'registros'}.
+        </p>
+      </div>
+      <div className="toolbar crm-filtros">
+        <label className="search">
+          <Icon name="search" size={16} />
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar atividade, empresa ou negócio" aria-label="Buscar no histórico" />
+        </label>
+        <div className="crm-filtro"><Selecao valor={tipo} onChange={setTipo} opcoes={TIPOS_ATIVIDADE} vazio="Todos os tipos" /></div>
+        <div className="crm-filtro"><Selecao valor={empresaId} onChange={setEmpresaId} opcoes={empresas} vazio="Todas as empresas" /></div>
+        <label className="crm-periodo">
+          <span>De</span>
+          <input className="input" type="date" value={de} onChange={e => setDe(e.target.value)} />
+        </label>
+        <label className="crm-periodo">
+          <span>Até</span>
+          <input className="input" type="date" value={ate} onChange={e => setAte(e.target.value)} />
+        </label>
+      </div>
+      <div className="dtable-wrap">
+        {lista.length > 0 && (
+          <table className="dtable sem-hover">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Atividade</th>
+                <th>Empresa</th>
+                <th>Negócio</th>
+                <th className="n">Peso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map(a => (
+                <tr key={a.id}>
+                  <td className="mono">{date(a.data, true)}</td>
+                  <td>{TIPOS_ATIVIDADE[a.tipo]}</td>
+                  <td className="crm-hist-texto">
+                    <b>{a.titulo}</b>
+                    {a.descricao && <small>{a.descricao}</small>}
+                  </td>
+                  <td>
+                    {a.empresa ? (
+                      <button type="button" className="trail-link" onClick={() => go('crmempresas', {id: a.empresa.id})}>
+                        {a.empresa.nome}
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="ell">{a.negocio?.titulo ?? '—'}</td>
+                  <td className="n">{a.quantidadeKg ? kg(a.quantidadeKg) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {!lista.length && (
+          <div className="empty">{realizadas.length ? 'Nenhum registro com esses filtros.' : 'Nenhuma atividade concluída ainda. As anotações e as atividades marcadas como feitas aparecem aqui.'}</div>
+        )}
+      </div>
+    </main>
+  );
+}
+
 /* ---------- Indicators ---------- */
 
 export function CrmIndicadores({onGo}) {

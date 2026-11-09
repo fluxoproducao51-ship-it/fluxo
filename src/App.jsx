@@ -18,7 +18,7 @@ import {Cadastros, MateriaisPagina, RotasPagina} from './pages/Cadastros.jsx';
 import {dadosDoPerfil, noChaoDeFabrica, veAPagina} from './state/perfis.js';
 import {Acesso} from './ui/Acesso.jsx';
 import {Usuarios} from './pages/Usuarios.jsx';
-import {CrmAtividades, CrmEmpresas, CrmFunil, CrmIndicadores} from './pages/Crm.jsx';
+import {CrmAtividades, CrmEmpresas, CrmFunil, CrmHistorico, CrmIndicadores} from './pages/Crm.jsx';
 
 const SCREENS = {
   painel: Painel,
@@ -26,6 +26,7 @@ const SCREENS = {
   crm: CrmFunil,
   crmempresas: CrmEmpresas,
   crmatividades: CrmAtividades,
+  crmhistorico: CrmHistorico,
   crmindicadores: CrmIndicadores,
   pcp: Pcp,
   rotas: RotasPagina,

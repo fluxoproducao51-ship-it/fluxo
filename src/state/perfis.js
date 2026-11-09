@@ -5,7 +5,7 @@ export const PERFIS = {
     cargo: 'Gerente',
     resumo: 'Vê tudo',
     inicio: 'painel',
-    paginas: ['painel', 'pcp', 'mapa', 'lotes', 'relatorios', 'recebimento', 'producao', 'apontar', 'andamento', 'misturas', 'estoque', 'maquinas', 'cadastros', 'usuarios', 'crm', 'crmempresas', 'crmatividades', 'crmindicadores'],
+    paginas: ['painel', 'pcp', 'mapa', 'lotes', 'relatorios', 'recebimento', 'producao', 'apontar', 'andamento', 'misturas', 'estoque', 'maquinas', 'cadastros', 'usuarios', 'crm', 'crmempresas', 'crmatividades', 'crmhistorico', 'crmindicadores'],
     acoes: ['editarRota', 'apontar', 'enviar', 'verMapa', 'verFicha']
   },
   pcp: {

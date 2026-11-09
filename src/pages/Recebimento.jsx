@@ -90,7 +90,7 @@ export function Recebimento({onGo}) {
   const numero = nextLote(lotes);
   const set = key => value => setForm(f => ({...f, [key]: value}));
 
-  const clientes = ativos('clientes');
+  const clientes = [...ativos('clientes')].sort();
   const materiais = ativos('materiais');
   // Logistics can't invent a material: only what the PCP already linked to a route.
   const configurados = materiaisConfigurados(cadastros);
@@ -162,19 +162,20 @@ export function Recebimento({onGo}) {
           <div className="fields">
             <label className="field wide">
               <span>Cliente</span>
-              <input
+              <select
                 className="input"
-                list="clientes"
                 value={form.cliente}
                 onChange={e => set('cliente')(e.target.value)}
-                placeholder="Ex.: Industria Fox"
                 style={tried && !form.cliente ? {borderColor: 'var(--stop)'} : null}
-              />
-              <datalist id="clientes">
+              >
+                <option value="">{clientes.length ? 'Selecione o cliente' : 'Nenhum cliente cadastrado'}</option>
                 {clientes.map(c => (
-                  <option key={c} value={c} />
+                  <option key={c} value={c}>
+                    {title(c)}
+                  </option>
                 ))}
-              </datalist>
+              </select>
+              {!clientes.length && <small style={{color: 'var(--stop)'}}>Peça ao gerente para cadastrar os clientes.</small>}
             </label>
             <label className="field">
               <span>Número da NF</span>
