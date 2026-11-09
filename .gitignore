@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+.env.local
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Local only: tools, sales material and the spreadsheet extract with client data
+.claude/
+.mcp.json
+proposta/
+tools/
+src/data/seed.json
