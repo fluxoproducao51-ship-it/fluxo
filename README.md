@@ -29,7 +29,7 @@ npm run dev
   mapa ou ligar uma porta a outra. A mudança só vale ao salvar e fica registrada na trilha.
 - **Lotes**: busca e filtros; cada lote abre no Mapa do lote, com etapas, separações, misturas, envios e dados do lote.
 - **Relatórios**: recebido por mês, por cliente e por material, e divergência de peso.
-- **Mais**: misturas e cadastros (materiais, clientes, cores, operadores).
+- **Mais**: misturas e cadastros (materiais, clientes e cores). Os operadores são os usuários com a função Operador de produção.
 - **Máquinas** (PCP e Gerente): cadastro das máquinas usadas nas rotas e no lançamento, com galpão e capacidade.
 - **Central do PCP**: o que precisa de decisão agora, fila e carga por máquina, e o que chegou da logística sem iniciar.
 - **Funções** (permissões em `src/state/perfis.js`): Gerente vê tudo; PCP vê central, mapa, quadro,

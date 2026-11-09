@@ -70,7 +70,7 @@ function NovoUsuario({onCriado}) {
 }
 
 export function Usuarios() {
-  const {perfil, notify} = useStore();
+  const {perfil, notify, recarregarDados} = useStore();
   const [lista, setLista] = useState(null);
   const [erro, setErro] = useState(null);
 
@@ -88,6 +88,7 @@ export function Usuarios() {
     if (error) notify({status: 'Não foi possível alterar', title: usuario.nome, detail: error.message.includes('gerente') ? 'O sistema precisa de pelo menos um gerente.' : mensagemDeErro(error), icon: 'alert'});
     else notify({status: 'Função alterada', title: usuario.nome, detail: papel ? PERFIS[papel].cargo : 'Sem acesso', icon: 'user'});
     carregar();
+    recarregarDados();
   };
 
   const pendentes = lista?.filter(u => !u.papel).length ?? 0;
@@ -97,7 +98,7 @@ export function Usuarios() {
         <h1 className="page-title">Usuários</h1>
         <p className="page-sub">Crie os acessos da equipe e defina o que cada pessoa pode ver.</p>
       </div>
-      <NovoUsuario onCriado={carregar} />
+      <NovoUsuario onCriado={() => (carregar(), recarregarDados())} />
       {pendentes > 0 && <div className="sem-rota"><b>{pendentes} {pendentes === 1 ? 'conta aguardando' : 'contas aguardando'} liberação.</b></div>}
       {erro && <p className="wiz-err">{erro}</p>}
       <div className="dtable-wrap">

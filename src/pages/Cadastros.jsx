@@ -11,8 +11,7 @@ const LISTAS = [
   {value: 'rotas', label: 'Rotas', hint: 'Sequência de máquinas de cada material.'},
   {value: 'materiais', label: 'Matéria-prima', hint: 'Materiais aceitos no recebimento e na separação.'},
   {value: 'clientes', label: 'Clientes', hint: 'Origem do material e destino dos envios.'},
-  {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'},
-  {value: 'operadores', label: 'Operadores', hint: 'Quem aponta a produção.'}
+  {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'}
 ];
 
 export function Cadastros() {
@@ -41,6 +40,7 @@ export function Cadastros() {
 
 function ListaCadastro({lista}) {
   const {cadastros, cadastro, notify} = useStore();
+  const [removendo, setRemovendo] = useState(null);
   const [novo, setNovo] = useState('');
   const [busca, setBusca] = useState('');
   const atual = LISTAS.find(l => l.value === lista);
@@ -86,6 +86,27 @@ function ListaCadastro({lista}) {
                   <span className="toggle-thumb" />
                 </span>
               </label>
+              {lista === 'cores' && (
+                removendo === i.nome ? (
+                  <span className="cad-confirma">
+                    <Button
+                      variant="danger-solido"
+                      size="sm"
+                      label="Excluir"
+                      onClick={() => {
+                        cadastro('cores', 'remover', i.nome);
+                        setRemovendo(null);
+                        notify({status: 'Cor excluída', title: title(i.nome), icon: 'trash'});
+                      }}
+                    />
+                    <Button size="sm" label="Não" onClick={() => setRemovendo(null)} />
+                  </span>
+                ) : (
+                  <button type="button" className="no-x" aria-label={`Excluir ${title(i.nome)}`} title="Excluir" onClick={() => setRemovendo(i.nome)}>
+                    <Icon name="trash" size={14} />
+                  </button>
+                )
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

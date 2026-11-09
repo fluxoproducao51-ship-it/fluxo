@@ -42,7 +42,8 @@ function Campos({valor, onChange, comNome, onEnter}) {
 }
 
 export function Maquinas() {
-  const {cadastros, abertos, cadastro, salvarMaquina, notify} = useStore();
+  const {cadastros, abertos, balances, cadastro, salvarMaquina, notify} = useStore();
+  const [excluindo, setExcluindo] = useState(null);
   const [nova, setNova] = useState(VAZIO);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState('');
@@ -63,6 +64,18 @@ export function Maquinas() {
     notify({status: 'Máquina cadastrada', title: title(nome), detail: 'Já pode entrar nas rotas', icon: 'plus'});
     setNova(VAZIO);
     setErro(null);
+  };
+
+  // A machine still in use can't go: routes and lots would point at something that no longer exists.
+  const impedimentos = nome => {
+    const rotas = cadastros.rotas.filter(r => r.etapas.includes(nome)).length;
+    const rodando = abertos.filter(p => p.setor === nome).length;
+    const naFila = [...balances.values()].filter(b => b.steps.some(s => s.setor === nome && s.pend > 0)).length;
+    return [
+      rotas && `está em ${rotas} ${rotas === 1 ? 'rota' : 'rotas'}`,
+      rodando && `tem ${rodando} ${rodando === 1 ? 'processo' : 'processos'} em andamento`,
+      naFila && `tem ${naFila} ${naFila === 1 ? 'lote' : 'lotes'} na fila`
+    ].filter(Boolean);
   };
 
   const salvarEdicao = () => {
@@ -153,11 +166,38 @@ export function Maquinas() {
                       </label>
                     </td>
                     <td style={{textAlign: 'right'}}>
-                      <Button
-                        size="sm"
-                        label="Editar"
-                        onClick={() => setEditando({nome: m.nome, galpao: m.galpao ?? '', capacidade: m.capacidade ? String(m.capacidade) : ''})}
-                      />
+                      {excluindo === m.nome ? (
+                        impedimentos(m.nome).length ? (
+                          <span className="maq-excluir">
+                            <span>Não dá para excluir: {impedimentos(m.nome).join(', ')}. Desative a máquina ou tire-a de lá primeiro.</span>
+                            <Button size="sm" label="Ok" onClick={() => setExcluindo(null)} />
+                          </span>
+                        ) : (
+                          <span className="maq-excluir">
+                            <span>Excluir esta máquina?</span>
+                            <Button
+                              variant="danger-solido"
+                              size="sm"
+                              label="Excluir"
+                              onClick={() => {
+                                cadastro('processos', 'remover', m.nome);
+                                setExcluindo(null);
+                                notify({status: 'Máquina excluída', title: title(m.nome), icon: 'trash'});
+                              }}
+                            />
+                            <Button size="sm" label="Não" onClick={() => setExcluindo(null)} />
+                          </span>
+                        )
+                      ) : (
+                        <span className="maq-botoes">
+                          <Button
+                            size="sm"
+                            label="Editar"
+                            onClick={() => setEditando({nome: m.nome, galpao: m.galpao ?? '', capacidade: m.capacidade ? String(m.capacidade) : ''})}
+                          />
+                          <Button variant="danger" size="sm" icon="trash" label="Excluir" onClick={() => setExcluindo(m.nome)} />
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

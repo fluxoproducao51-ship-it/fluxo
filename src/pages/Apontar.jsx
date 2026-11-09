@@ -565,12 +565,18 @@ function IniciarWizard({inicial, maquina, onIniciado}) {
           </p>
           <label className="field" style={{maxWidth: 420, marginTop: 16}}>
             <span>Operador</span>
-            <input className="input" list="operadores" value={operador} onChange={e => setOperador(e.target.value)} placeholder="Seu nome" />
-            <datalist id="operadores">
-              {ativos('operadores').map(o => (
-                <option key={o} value={o} />
-              ))}
-            </datalist>
+            {perfil.tipo === 'producao' ? (
+              <input className="input" value={title(operador)} readOnly aria-readonly="true" />
+            ) : (
+              <select className="input" value={operador} onChange={e => setOperador(e.target.value)}>
+                <option value="">Selecione</option>
+                {[...new Set([...ativos('operadores'), perfil.nome.toUpperCase()])].map(o => (
+                  <option key={o} value={o}>
+                    {title(o)}
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
         </Corpo>
       )}

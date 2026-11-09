@@ -13,7 +13,6 @@ const TABELAS = [
   {tabela: 'materiais', chave: 'nome', de: s => s.cadastros.materiais, colunas: ['nome', 'ativo']},
   {tabela: 'clientes', chave: 'nome', de: s => s.cadastros.clientes, colunas: ['nome', 'ativo']},
   {tabela: 'cores', chave: 'nome', de: s => s.cadastros.cores, colunas: ['nome', 'ativo']},
-  {tabela: 'operadores', chave: 'nome', de: s => s.cadastros.operadores, colunas: ['nome', 'ativo']},
   {tabela: 'maquinas', chave: 'nome', de: s => s.cadastros.processos, colunas: ['nome', 'ativo', 'galpao', 'capacidade']},
   {tabela: 'rotas', chave: 'id', de: s => s.cadastros.rotas, colunas: ['id', 'nome', 'palavras', 'materiais', 'etapas', 'ativo']},
   {
@@ -86,12 +85,19 @@ export async function carregarTudo(tipo) {
   const uteis = TABELAS.filter(t => !t.crm || tipo === 'gerente');
   const lidas = await Promise.all(uteis.map(t => lerTabela(t.tabela)));
   const de = nome => lidas[uteis.findIndex(t => t.tabela === nome)] ?? [];
+  // Operators are the users with the production role. Only a manager posts on someone else's behalf.
+  let operadores = [];
+  if (tipo === 'gerente') {
+    const {data, error} = await supabase.from('perfis').select('nome').eq('papel', 'producao').order('nome');
+    if (error) throw error;
+    operadores = data.map(p => ({nome: p.nome.toUpperCase(), ativo: true}));
+  }
   return {
     cadastros: {
       materiais: de('materiais'),
       clientes: de('clientes'),
       cores: de('cores'),
-      operadores: de('operadores'),
+      operadores,
       processos: de('maquinas'),
       rotas: de('rotas')
     },

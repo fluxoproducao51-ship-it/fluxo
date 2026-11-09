@@ -17,14 +17,13 @@ const addMissing = (list, names) => {
   return [...list, ...names.filter(n => n && !known.has(n)).map(nome => ({nome, ativo: true}))];
 };
 
-function remember(cadastros, {clientes = [], materiais = [], processos = [], cores = [], operadores = []}) {
+function remember(cadastros, {clientes = [], materiais = [], processos = [], cores = []}) {
   return {
     ...cadastros,
     clientes: addMissing(cadastros.clientes, clientes),
     materiais: addMissing(cadastros.materiais, materiais),
     processos: addMissing(cadastros.processos, processos),
-    cores: addMissing(cadastros.cores, cores),
-    operadores: addMissing(cadastros.operadores, operadores)
+    cores: addMissing(cadastros.cores, cores)
   };
 }
 
@@ -48,8 +47,7 @@ function reducer(state, action) {
     case 'iniciar':
       return {
         ...state,
-        abertos: [...state.abertos, {...action.processo, inicio: now(), pausas: []}],
-        cadastros: remember(state.cadastros, {operadores: [action.processo.operador]})
+        abertos: [...state.abertos, {...action.processo, inicio: now(), pausas: []}]
       };
     case 'pausar':
       return mapAberto(state, action.id, p => ({...p, pausas: [...p.pausas, {inicio: now(), fim: null, motivo: action.motivo, obs: action.obs}]}));
@@ -93,7 +91,9 @@ function reducer(state, action) {
       const next =
         action.op === 'add'
           ? addMissing(list, [action.nome])
-          : list.map(i => (i.nome === action.nome ? {...i, ativo: !i.ativo} : i));
+          : action.op === 'remover'
+            ? list.filter(i => i.nome !== action.nome)
+            : list.map(i => (i.nome === action.nome ? {...i, ativo: !i.ativo} : i));
       return {...state, cadastros: {...state.cadastros, [action.lista]: next}};
     }
     case 'salvarRota': {
@@ -264,6 +264,7 @@ export function StoreProvider({children, perfil, inicial}) {
       },
       crmSalvar: (colecao, item) => dispatch({type: 'crmSalvar', colecao, item}),
       crmRemover: (colecao, id) => dispatch({type: 'crmRemover', colecao, id}),
+      recarregarDados: recarregar,
       sair: () => supabase.auth.signOut(),
     };
   }, [state, balances, fila, toast, dialog, notify]);
