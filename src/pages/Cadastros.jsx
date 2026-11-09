@@ -14,6 +14,8 @@ const LISTAS = [
   {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'}
 ];
 
+const REMOVIVEIS = ['materiais', 'clientes', 'cores'];
+
 export function Cadastros() {
   const {cadastros} = useStore();
   const [lista, setLista] = useState('rotas');
@@ -39,12 +41,31 @@ export function Cadastros() {
 }
 
 function ListaCadastro({lista}) {
-  const {cadastros, cadastro, notify} = useStore();
+  const {cadastros, cadastro, notify, crm} = useStore();
   const [removendo, setRemovendo] = useState(null);
   const [novo, setNovo] = useState('');
   const [busca, setBusca] = useState('');
   const atual = LISTAS.find(l => l.value === lista);
   const itens = cadastros[lista].filter(i => i.nome.includes(busca.trim().toUpperCase()));
+  // Lots keep the name as history; what can't lose it is whatever still depends on it going forward.
+  const impedimento = nome => {
+    if (lista === 'materiais') {
+      const rota = cadastros.rotas.find(r => r.materiais.includes(nome));
+      if (rota) return `Está ligado à rota ${title(rota.nome)}. Tire o material da rota primeiro.`;
+      const negocios = crm.negocios.filter(n => n.situacao === 'aberto' && n.material === nome).length;
+      if (negocios) return `Está em ${negocios} ${negocios === 1 ? 'negócio aberto' : 'negócios abertos'} no funil.`;
+    }
+    if (lista === 'clientes') {
+      const empresa = crm.empresas.find(e => e.clientePlanta === nome);
+      if (empresa) return `Está vinculado à empresa ${empresa.nome} no CRM.`;
+    }
+    return null;
+  };
+  const pedirExclusao = nome => {
+    const motivo = impedimento(nome);
+    if (motivo) return notify({status: 'Não dá para excluir', title: title(nome), detail: motivo, icon: 'alert'});
+    setRemovendo(nome);
+  };
   const add = () => {
     const nome = novo.trim().toUpperCase();
     if (!nome) return;
@@ -86,7 +107,7 @@ function ListaCadastro({lista}) {
                   <span className="toggle-thumb" />
                 </span>
               </label>
-              {lista === 'cores' && (
+              {REMOVIVEIS.includes(lista) && (
                 removendo === i.nome ? (
                   <span className="cad-confirma">
                     <Button
@@ -94,15 +115,15 @@ function ListaCadastro({lista}) {
                       size="sm"
                       label="Excluir"
                       onClick={() => {
-                        cadastro('cores', 'remover', i.nome);
+                        cadastro(lista, 'remover', i.nome);
                         setRemovendo(null);
-                        notify({status: 'Cor excluída', title: title(i.nome), icon: 'trash'});
+                        notify({status: `${atual.label} · excluído`, title: title(i.nome), icon: 'trash'});
                       }}
                     />
                     <Button size="sm" label="Não" onClick={() => setRemovendo(null)} />
                   </span>
                 ) : (
-                  <button type="button" className="no-x" aria-label={`Excluir ${title(i.nome)}`} title="Excluir" onClick={() => setRemovendo(i.nome)}>
+                  <button type="button" className="no-x" aria-label={`Excluir ${title(i.nome)}`} title="Excluir" onClick={() => pedirExclusao(i.nome)}>
                     <Icon name="trash" size={14} />
                   </button>
                 )
