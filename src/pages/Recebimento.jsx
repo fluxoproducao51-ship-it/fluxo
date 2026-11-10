@@ -13,6 +13,7 @@ import {MaterialCode} from '../ui/MaterialCode.jsx';
 import {SectionHeader} from '../ui/SectionHeader.jsx';
 
 const EMPTY = {
+  numero: '',
   cliente: '',
   nf: '',
   material: '',
@@ -87,7 +88,11 @@ export function Recebimento({onGo}) {
   const escolhida = form.rotaId ? rotas.find(r => r.id === form.rotaId) : sugerida;
   const rota = etapas ?? escolhida?.etapas ?? [];
   const scale = useRef(null);
-  const numero = nextLote(lotes);
+  // The number on the paperwork can be typed in; left blank, the next one in sequence is used.
+  const sugerido = nextLote(lotes);
+  const digitado = form.numero.trim().toUpperCase();
+  const numero = digitado || sugerido;
+  const numeroRepetido = digitado && lotes.some(l => l.lote.toUpperCase() === digitado);
   const set = key => value => setForm(f => ({...f, [key]: value}));
 
   const clientes = [...ativos('clientes')].sort();
@@ -98,7 +103,7 @@ export function Recebimento({onGo}) {
   const total = bags.reduce((s, b) => s + b, 0);
   const nf = parseKg(form.pesoNF);
   const diff = nf && total ? (total - nf) / nf : null;
-  const missing = [!form.cliente && 'cliente', !form.material && 'material', !bags.length && 'pesagens', defineRota && !rota.length && 'rota'].filter(Boolean);
+  const missing = [!form.cliente && 'cliente', !form.material && 'material', !bags.length && 'pesagens', defineRota && !rota.length && 'rota', numeroRepetido && 'número do lote (já existe)'].filter(Boolean);
 
   const addBag = () => {
     const value = parseKg(peso);
@@ -160,6 +165,21 @@ export function Recebimento({onGo}) {
         <div className="panel">
           <p className="label">Nota fiscal e aviso de recebimento</p>
           <div className="fields">
+            <label className="field wide">
+              <span>Número do lote</span>
+              <input
+                className="input"
+                value={form.numero}
+                onChange={e => set('numero')(e.target.value.toUpperCase().replace(/[^A-Z0-9\-./]/g, ''))}
+                maxLength={20}
+                placeholder={`Automático: ${sugerido}`}
+                aria-invalid={Boolean(numeroRepetido)}
+                style={numeroRepetido ? {borderColor: 'var(--stop)'} : null}
+              />
+              <small style={{color: numeroRepetido ? 'var(--stop)' : 'var(--subtle)'}}>
+                {numeroRepetido ? `Já existe um lote ${digitado}. Use outro número.` : 'Deixe em branco para usar o próximo número da sequência.'}
+              </small>
+            </label>
             <label className="field wide">
               <span>Cliente</span>
               <select

@@ -1168,3 +1168,21 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .dtable td.crm-hist-texto { white-space: normal; min-width: 220px; }
 .crm-hist-texto b { display: block; font-weight: 500; }
 .crm-hist-texto small { display: block; font-size: 12px; color: var(--muted); }
+
+/* ---------- Delete lot ---------- */
+.excluir-aviso { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; padding: 12px 14px; border: 1px solid var(--stop); background: color-mix(in srgb, var(--stop) 6%, white); font-size: 14px; }
+.excluir-aviso b { color: var(--stop); }
+.excluir-aviso ul { margin: 0; padding-left: 18px; }
+.btn-icone { width: 32px; height: 32px; padding: 0; justify-content: center; }
+.row.com-excluir { grid-template-columns: 44px minmax(130px, 0.7fr) minmax(140px, 1.3fr) minmax(140px, 1.3fr) 110px 110px 90px 150px 40px; }
+.row.stock-row .acoes-lote { display: flex; gap: 6px; justify-content: flex-end; }
+.row.stock-row.com-excluir { grid-template-columns: 44px 160px minmax(160px, 1fr) 120px 120px 120px 150px; }
+@media (max-width: 1100px) {
+  .row.com-excluir { grid-template-columns: 36px 130px minmax(0, 1fr) minmax(0, 1fr) 100px 130px 40px; }
+  .row.stock-row.com-excluir { grid-template-columns: 40px 120px minmax(120px, 1fr) 110px 110px 140px; }
+}
+@media (max-width: 860px) {
+  .row.com-excluir { grid-template-columns: 36px 120px minmax(0, 1fr) 90px 40px; }
+  .row.stock-row.com-excluir { grid-template-columns: 36px 90px minmax(0, 1fr) 90px 124px; }
+}
+.row[role="button"] { cursor: pointer; }

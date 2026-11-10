@@ -8,6 +8,8 @@ import {SectionHeader} from '../ui/SectionHeader.jsx';
 
 export function Estoque() {
   const {lotes, balances, envios, abrirLote, openDialog, loteDe, perfil} = useStore();
+  const excluir = pode(perfil, 'excluirLote');
+  const extra = excluir ? ' com-excluir' : '';
   const emEstoque = useMemo(
     () =>
       lotes
@@ -46,7 +48,7 @@ export function Estoque() {
       <section>
         <SectionHeader title="Lotes em estoque" />
         <div className="rows">
-          <div className="row row-head stock-row" style={{background: 'none'}}>
+          <div className={`row row-head stock-row${extra}`} style={{background: 'none'}}>
             <span />
             <span>Lote</span>
             <span>Material</span>
@@ -56,7 +58,7 @@ export function Estoque() {
             <span />
           </div>
           {emEstoque.map(({l, b}) => (
-            <div key={l.lote} className="row stock-row">
+            <div key={l.lote} className={`row stock-row${extra}`}>
               <span className="row-thumb">
                 <MaterialCode material={materialDe(l)} tipo={l.tipo} />
               </span>
@@ -70,9 +72,20 @@ export function Estoque() {
               <span className="num hide-sm" style={{color: 'var(--muted)'}}>{kg(b.est + b.enviado + (b.misturado || 0))}</span>
               <span className="num hide-md" style={{color: 'var(--muted)'}}>{kg(b.enviado)}</span>
               <span className="num" style={{fontWeight: 600}}>{kg(b.est)}</span>
-              <span style={{textAlign: 'right'}}>
+              <span className="acoes-lote">
                 {pode(perfil, 'enviar') && (
                   <Button variant="secondary" size="sm" icon="truck" label="Enviar" onClick={() => openDialog({tipo: 'envio', lote: l.lote})} />
+                )}
+                {excluir && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="trash"
+                    className="btn-icone"
+                    aria-label={`Excluir lote ${l.lote}`}
+                    title="Excluir lote"
+                    onClick={() => openDialog({tipo: 'excluirLote', lote: l.lote})}
+                  />
                 )}
               </span>
             </div>

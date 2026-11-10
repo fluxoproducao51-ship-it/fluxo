@@ -1,6 +1,7 @@
 import {createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {computeBalances, filaDe, statusFrom} from './balance.js';
 import {aoMudar, carregarTudo, diferencas, gravar, mensagemDeErro, supabase} from './banco.js';
+import {semLote} from './excluir.js';
 
 const MAQUINA_KEY = 'fluxo:maquina';
 
@@ -120,6 +121,8 @@ function reducer(state, action) {
         }
       };
     }
+    case 'excluirLote':
+      return semLote(state, action.lote);
     case 'removerRota':
       return {...state, cadastros: {...state.cadastros, rotas: state.cadastros.rotas.filter(r => r.id !== action.id)}};
     case 'maquina':
@@ -254,6 +257,7 @@ export function StoreProvider({children, perfil, inicial}) {
       salvarRota: rota => dispatch({type: 'salvarRota', rota}),
       salvarMaquina: maquina => dispatch({type: 'salvarMaquina', maquina}),
       removerRota: id => dispatch({type: 'removerRota', id}),
+      excluirLote: lote => dispatch({type: 'excluirLote', lote}),
       setMaquina: maquina => {
         try {
           localStorage.setItem(MAQUINA_KEY, maquina);

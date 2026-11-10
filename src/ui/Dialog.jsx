@@ -4,6 +4,7 @@ import {useStore} from '../state/store.jsx';
 import {kg, materialDe, title, today} from '../state/data.js';
 import {Button} from './Button.jsx';
 import {MaterialCode} from './MaterialCode.jsx';
+import {oQueSaiComLote} from '../state/excluir.js';
 
 const EASE_OUT = [0.16, 1, 0.3, 1];
 
@@ -42,6 +43,7 @@ export function Dialogs() {
             transition={{duration: 0.3, ease: EASE_OUT}}
           >
             {dialog.tipo === 'envio' && <Envio lote={dialog.lote} cliente={dialog.cliente} pesoSugerido={dialog.peso} />}
+            {dialog.tipo === 'excluirLote' && <ExcluirLote lote={dialog.lote} />}
           </motion.div>
         </>
       )}
@@ -135,6 +137,67 @@ function Envio({lote: id, cliente, pesoSugerido}) {
         <Button variant="primary" size="lg" icon="truck" label="Registrar envio" onClick={submit} />
         <Button variant="ghost" label="Cancelar" onClick={closeDialog} />
         {tried && erro && <span style={{color: 'var(--stop)', fontSize: 13}}>{erro}</span>}
+      </div>
+    </>
+  );
+}
+
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+function ExcluirLote({lote: id}) {
+  const store = useStore();
+  const {loteDe, balancoDe, excluirLote, notify, closeDialog} = store;
+  const lote = loteDe(id);
+  if (!lote) return null;
+  const fora = oQueSaiComLote(id, store);
+  const outros = [...fora.lotes].filter(l => l !== id);
+  const junto = [
+    outros.length && plural(outros.length, 'lote derivado', 'lotes derivados') + ` (${outros.join(', ')})`,
+    fora.apontamentos && plural(fora.apontamentos, 'apontamento de produção', 'apontamentos de produção'),
+    fora.abertos && plural(fora.abertos, 'processo em andamento', 'processos em andamento'),
+    fora.misturas.size && plural(fora.misturas.size, 'mistura', 'misturas'),
+    fora.envios && plural(fora.envios, 'envio a cliente', 'envios a clientes'),
+    fora.ordens && plural(fora.ordens, 'ordem de produção', 'ordens de produção')
+  ].filter(Boolean);
+  const est = balancoDe(id)?.est ?? 0;
+  const confirmar = () => {
+    excluirLote(id);
+    notify({status: 'Lote excluído', title: `Lote ${id}`, detail: outros.length ? `e ${plural(outros.length, 'lote derivado', 'lotes derivados')}` : title(lote.cliente), icon: 'trash'});
+    closeDialog();
+  };
+  return (
+    <>
+      <div style={{display: 'flex', gap: 16, alignItems: 'center'}}>
+        <div className="mat-thumb">
+          <MaterialCode material={materialDe(lote)} tipo={lote.tipo} />
+        </div>
+        <div>
+          <p className="label" style={{margin: 0}}>Excluir lote</p>
+          <div style={{fontSize: 24, fontWeight: 600}}>Lote {id}</div>
+          <div style={{color: 'var(--muted)', fontSize: 14}}>
+            {title(materialDe(lote))} · {title(lote.cliente)}
+            {est > 0 ? ` · ${kg(est)} em estoque` : ''}
+          </div>
+        </div>
+      </div>
+      <div className="excluir-aviso">
+        <b>Esta ação não pode ser desfeita.</b>
+        {junto.length ? (
+          <>
+            <span>Também serão excluídos:</span>
+            <ul>
+              {junto.map(j => (
+                <li key={j}>{j}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <span>O lote não tem apontamentos, envios nem lotes derivados.</span>
+        )}
+      </div>
+      <div style={{display: 'flex', gap: 8, marginTop: 22, alignItems: 'center', flexWrap: 'wrap'}}>
+        <Button variant="danger-solido" size="lg" icon="trash" label="Excluir lote" onClick={confirmar} />
+        <Button variant="ghost" label="Cancelar" onClick={closeDialog} />
       </div>
     </>
   );

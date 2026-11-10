@@ -6,12 +6,15 @@ import {Icon} from '../ui/Icon.jsx';
 import {MaterialCode} from '../ui/MaterialCode.jsx';
 import {Menu, MenuDivider, MenuItem} from '../ui/Menu.jsx';
 import {Status} from '../ui/Status.jsx';
+import {pode} from '../state/perfis.js';
 import {Chips} from './Producao.jsx';
 
 const PAGE = 40;
 
 export function Lotes({initial}) {
-  const {lotes, statusDe, abrirLote} = useStore();
+  const {lotes, statusDe, abrirLote, openDialog, perfil} = useStore();
+  const excluir = pode(perfil, 'excluirLote');
+  const extra = excluir ? ' com-excluir' : '';
   const [query, setQuery] = useState('');
   const [cliente, setCliente] = useState(initial?.cliente ?? null);
   const [compra, setCompra] = useState('TODAS');
@@ -95,7 +98,7 @@ export function Lotes({initial}) {
       </div>
 
       <section className="rows">
-        <div className="row row-head" style={{background: 'none'}}>
+        <div className={`row row-head${extra}`} style={{background: 'none'}}>
           <span />
           <span>Lote</span>
           <span>Cliente</span>
@@ -104,11 +107,19 @@ export function Lotes({initial}) {
           <span className="num">Peso</span>
           <span className="num hide-md">NF × bal.</span>
           <span className="hide-sm">Status</span>
+          {excluir && <span />}
         </div>
         {list.slice(0, limit).map(l => {
           const diff = divergencia(l);
           return (
-            <button key={l.lote} type="button" className="row" onClick={() => abrirLote(l.lote)}>
+            <div
+              key={l.lote}
+              role="button"
+              tabIndex={0}
+              className={`row${extra}`}
+              onClick={() => abrirLote(l.lote)}
+              onKeyDown={e => e.target === e.currentTarget && e.key === 'Enter' && abrirLote(l.lote)}
+            >
               <span className="row-thumb">
                 <MaterialCode material={materialDe(l)} tipo={l.tipo} />
               </span>
@@ -121,7 +132,21 @@ export function Lotes({initial}) {
               <span className="hide-sm">
                 <Status value={statusDe(l)} />
               </span>
-            </button>
+              {excluir && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="trash"
+                  className="btn-icone"
+                  aria-label={`Excluir lote ${l.lote}`}
+                  title="Excluir lote"
+                  onClick={e => {
+                    e.stopPropagation();
+                    openDialog({tipo: 'excluirLote', lote: l.lote});
+                  }}
+                />
+              )}
+            </div>
           );
         })}
         {!list.length && <div className="empty">Nenhum lote encontrado.</div>}

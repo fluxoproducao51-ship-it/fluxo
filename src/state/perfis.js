@@ -6,14 +6,14 @@ export const PERFIS = {
     resumo: 'Vê tudo',
     inicio: 'painel',
     paginas: ['painel', 'pcp', 'mapa', 'lotes', 'relatorios', 'recebimento', 'producao', 'apontar', 'andamento', 'misturas', 'estoque', 'maquinas', 'cadastros', 'usuarios', 'crm', 'crmempresas', 'crmatividades', 'crmhistorico', 'crmindicadores'],
-    acoes: ['editarRota', 'apontar', 'enviar', 'verMapa', 'verFicha']
+    acoes: ['editarRota', 'apontar', 'enviar', 'excluirLote', 'verMapa', 'verFicha']
   },
   pcp: {
     cargo: 'Planejamento e controle',
     resumo: 'Central do PCP, mapa, estoque, rotas e máquinas',
     inicio: 'pcp',
     paginas: ['pcp', 'mapa', 'lotes', 'relatorios', 'producao', 'estoque', 'rotas', 'materiais', 'maquinas'],
-    acoes: ['editarRota', 'enviar', 'verMapa', 'verFicha']
+    acoes: ['editarRota', 'enviar', 'excluirLote', 'verMapa', 'verFicha']
   },
   logistica: {
     cargo: 'Operador logístico',
