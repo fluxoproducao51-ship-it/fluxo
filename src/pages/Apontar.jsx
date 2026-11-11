@@ -641,7 +641,9 @@ function FinalizarWizard({proc, onClose}) {
   const [separa, setSepara] = useState(false);
   const [obtido, setObtido] = useState('');
   const [itens, setItens] = useState([{material: '', peso: '', destino: 'estoque'}]);
-  const [perdas, setPerdas] = useState({po: '', lixo: '', contaminado: ''});
+  // Loss kinds come from the office's list; the operator fills in kilos, never new kinds.
+  const tiposPerda = ativos('tiposPerda');
+  const [perdas, setPerdas] = useState({});
   const [obs, setObs] = useState('');
   const [erro, setErro] = useState(null);
   // What didn't become a child lot: moves on in this lot, returns to this machine's queue, or is a loss.
@@ -659,7 +661,7 @@ function FinalizarWizard({proc, onClose}) {
   const saiu = separa ? nosFilhos + segueNoLote : n(obtido);
   const quebra = Math.max(0, processado - saiu);
   const destinoLote = proxima ? title(proxima) : 'o estoque';
-  const somaPerdas = n(perdas.po) + n(perdas.lixo) + n(perdas.contaminado);
+  const somaPerdas = tiposPerda.reduce((s, t) => s + n(perdas[t]), 0);
   const tempo = horasLiquidas(proc, agora);
   const setItem = (i, key, v) => setItens(list => list.map((it, j) => (j === i ? {...it, [key]: v} : it)));
 
@@ -732,9 +734,7 @@ function FinalizarWizard({proc, onClose}) {
         ...(segueNoLote ? {continua: {peso: segueNoLote}} : {}),
         ...(volta ? {voltouParaFila: volta} : {}),
         // Numbers typed before correcting the output to "all of it" no longer apply.
-        po: quebra ? n(perdas.po) : 0,
-        lixo: quebra ? n(perdas.lixo) : 0,
-        contaminado: quebra ? n(perdas.contaminado) : 0,
+        perdas: quebra ? Object.fromEntries(tiposPerda.filter(t => n(perdas[t]) > 0).map(t => [t, n(perdas[t])])) : {},
         operador: proc.operador,
         obs: obs.trim()
       }
@@ -836,7 +836,7 @@ function FinalizarWizard({proc, onClose}) {
                     {[
                       {id: 'proxima', titulo: proxima ? `Seguem para ${title(proxima)}` : 'Vão para o estoque', sub: `Continuam no lote ${lote.lote}`},
                       {id: 'maquina', titulo: `Voltam para a fila de ${title(proc.setor)}`, sub: 'Ainda vão passar por esta máquina'},
-                      {id: 'perda', titulo: 'É perda', sub: 'Pó, lixo ou contaminado'}
+                      {id: 'perda', titulo: 'É perda', sub: tiposPerda.length ? tiposPerda.slice(0, 3).map(t => title(t)).join(', ') + (tiposPerda.length > 3 ? '…' : '') : 'Classifique no próximo passo'}
                     ].map(o => (
                       <button
                         key={o.id}
@@ -896,24 +896,21 @@ function FinalizarWizard({proc, onClose}) {
       {passo === 1 && (
         <Corpo passo={1}>
           <p className="wiz-q">Do que se perdeu ({kg(quebra)}), quanto foi:</p>
-          <div className="fields" style={{gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', maxWidth: 720}}>
-            {[
-              ['po', 'Pó'],
-              ['lixo', 'Lixo / rejeito'],
-              ['contaminado', 'Contaminado']
-            ].map(([k, label]) => (
-              <label key={k} className="field">
-                <span>{label} (kg)</span>
+          <div className="fields perdas-campos">
+            {tiposPerda.map(t => (
+              <label key={t} className="field">
+                <span>{title(t)} (kg)</span>
                 <input
                   className="input big-input"
                   inputMode="numeric"
-                  value={perdas[k]}
-                  onChange={e => setPerdas(p => ({...p, [k]: e.target.value}))}
+                  value={perdas[t] ?? ''}
+                  onChange={e => setPerdas(p => ({...p, [t]: e.target.value}))}
                   placeholder="0"
                 />
               </label>
             ))}
           </div>
+          {!tiposPerda.length && <p className="wiz-note">Nenhum tipo de perda cadastrado. A perda fica sem categoria; peça ao gerente para cadastrar os tipos.</p>}
           <div className="meter" style={{maxWidth: 720}}>
             <motion.div
               initial={false}

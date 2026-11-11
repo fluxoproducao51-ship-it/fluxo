@@ -22,6 +22,13 @@ export function horas(ap) {
 export const obtidoDe = ap =>
   ap.separacao?.length ? ap.separacao.reduce((s, item) => s + item.peso, 0) + (ap.continua?.peso ?? 0) : ap.obtido ?? 0;
 
+// Losses of one posting by kind, {"PÓ": 20, ...}. Older postings kept them in three fixed fields.
+const ANTIGAS = [['po', 'PÓ'], ['lixo', 'LIXO / REJEITO'], ['contaminado', 'CONTAMINADO']];
+export function perdasDe(ap) {
+  if (ap.perdas && typeof ap.perdas === 'object') return Object.fromEntries(Object.entries(ap.perdas).filter(([, kg]) => kg > 0));
+  return Object.fromEntries(ANTIGAS.filter(([campo]) => ap[campo] > 0).map(([campo, nome]) => [nome, Number(ap[campo])]));
+}
+
 export const quebraDe = ap => Math.max(0, ap.usado - obtidoDe(ap));
 
 // Running time of an open process, without its pauses, in hours.

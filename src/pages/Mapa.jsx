@@ -6,7 +6,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import {useStore} from '../state/store.jsx';
 import {date, divergencia, hours, kg, materialDe, nomeVolume, pct, title} from '../state/data.js';
-import {horasLiquidas, obtidoDe, pausado, quebraDe} from '../state/balance.js';
+import {horasLiquidas, obtidoDe, pausado, perdasDe, quebraDe} from '../state/balance.js';
 import {arvoreDeLotes, construirMapa, filhosNoMapa, noEntrada, noEstoque, ondeEsta, posicaoDoLote} from '../state/mapa.js';
 import {etapasTravadas} from '../state/rotas.js';
 import {pode} from '../state/perfis.js';
@@ -346,11 +346,7 @@ function Cabecalho({titulo, onFechar}) {
 }
 
 function Apontamento({a}) {
-  const perdas = [
-    a.po > 0 && `pó ${kg(a.po)}`,
-    a.lixo > 0 && `lixo ${kg(a.lixo)}`,
-    a.contaminado > 0 && `contaminado ${kg(a.contaminado)}`
-  ].filter(Boolean);
+  const perdas = Object.entries(perdasDe(a)).map(([tipo, peso]) => `${title(tipo).toLowerCase()} ${kg(peso)}`);
   const quebra = quebraDe(a);
   return (
     <div className="mapa-ap">

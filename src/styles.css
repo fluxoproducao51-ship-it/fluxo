@@ -1221,3 +1221,4 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .hist-motivo span { font-size: 12px; color: var(--muted); }
 .hist-tabela tbody tr { cursor: pointer; }
 @media (max-width: 860px) { .hist-maquina { width: 100%; } .hist-agora { margin-left: 0; } }
+.perdas-campos { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; max-width: 720px; }

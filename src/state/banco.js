@@ -13,6 +13,7 @@ const TABELAS = [
   {tabela: 'materiais', chave: 'nome', de: s => s.cadastros.materiais, colunas: ['nome', 'ativo']},
   {tabela: 'clientes', chave: 'nome', de: s => s.cadastros.clientes, colunas: ['nome', 'ativo']},
   {tabela: 'cores', chave: 'nome', de: s => s.cadastros.cores, colunas: ['nome', 'ativo']},
+  {tabela: 'tipos_perda', chave: 'nome', de: s => s.cadastros.tiposPerda, colunas: ['nome', 'ativo']},
   {tabela: 'maquinas', chave: 'nome', de: s => s.cadastros.processos, colunas: ['nome', 'ativo', 'galpao', 'capacidade', 'setor']},
   {tabela: 'rotas', chave: 'id', de: s => s.cadastros.rotas, colunas: ['id', 'nome', 'palavras', 'materiais', 'etapas', 'ativo']},
   {
@@ -32,7 +33,7 @@ const TABELAS = [
     de: s => s.apontamentos,
     colunas: [
       'id', 'lote', 'setor', 'etapa', 'data', 'inicio', 'fim', 'horas', 'pausas', 'usado', 'obtido', 'separacao', 'continua',
-      'voltou_para_fila', 'destino', 'po', 'lixo', 'contaminado', 'operador', 'obs', 'importado'
+      'voltou_para_fila', 'destino', 'po', 'lixo', 'contaminado', 'perdas', 'operador', 'obs', 'importado'
     ]
   },
   {tabela: 'processos_abertos', chave: 'id', de: s => s.abertos, colunas: ['id', 'lote', 'etapa', 'setor', 'usado', 'operador', 'inicio', 'pausas']},
@@ -97,6 +98,7 @@ export async function carregarTudo(tipo) {
       materiais: de('materiais'),
       clientes: de('clientes'),
       cores: de('cores'),
+      tiposPerda: de('tipos_perda').sort((a, b) => (a.criadoEm ?? '').localeCompare(b.criadoEm ?? '')),
       operadores,
       processos: de('maquinas'),
       rotas: de('rotas')

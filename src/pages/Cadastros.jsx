@@ -11,10 +11,11 @@ const LISTAS = [
   {value: 'rotas', label: 'Rotas', hint: 'Sequência de máquinas de cada material.'},
   {value: 'materiais', label: 'Matéria-prima', hint: 'Materiais aceitos no recebimento e na separação.'},
   {value: 'clientes', label: 'Clientes', hint: 'Origem do material e destino dos envios.'},
-  {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'}
+  {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'},
+  {value: 'tiposPerda', label: 'Tipos de perda', hint: 'O que o operador pode escolher ao classificar a perda de um processo.'}
 ];
 
-const REMOVIVEIS = ['materiais', 'clientes', 'cores'];
+const REMOVIVEIS = ['materiais', 'clientes', 'cores', 'tiposPerda'];
 
 export function Cadastros() {
   const {cadastros} = useStore();

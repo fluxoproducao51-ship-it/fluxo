@@ -2,17 +2,14 @@ import {useMemo} from 'react';
 import {motion} from 'framer-motion';
 import {useStore} from '../state/store.jsx';
 import {MESES, MESES_LONGOS, date, divergencia, kg, pct, pesado, title, tons} from '../state/data.js';
-import {horas, obtidoDe, quebraDe} from '../state/balance.js';
+import {horas, obtidoDe, perdasDe, quebraDe} from '../state/balance.js';
 import {SectionHeader} from '../ui/SectionHeader.jsx';
 
 const EASE_OUT = [0.16, 1, 0.3, 1];
 
-const PERDAS = [
-  {key: 'po', label: 'Pó', color: 'var(--ready)'},
-  {key: 'lixo', label: 'Lixo', color: 'var(--stop)'},
-  {key: 'contaminado', label: 'Contaminado', color: 'var(--stock)'},
-  {key: 'outra', label: 'Outra quebra', color: 'var(--subtle)'}
-];
+// Loss kinds are registered by the office, so the colours cycle; unclassified loss is always grey and last.
+const CORES_PERDA = ['var(--ready)', 'var(--stop)', 'var(--stock)', 'var(--accent)', '#7a5c99', '#3d8b7a', '#b5651d', '#5d6d7e'];
+const SEM_CATEGORIA = 'Sem categoria';
 
 const sinal = n => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const kgSinal = n => `${n > 0 ? '+' : n < 0 ? '−' : ''}${kg(Math.abs(n))}`;
@@ -122,7 +119,7 @@ export function Relatorios() {
         .map(([label, value]) => ({label: title(label), value}));
 
     const etapas = {};
-    const perdas = {po: 0, lixo: 0, contaminado: 0, outra: 0};
+    const perdas = {};
     let usado = 0;
     let obtido = 0;
     for (const ap of apontamentos) {
@@ -136,13 +133,12 @@ export function Relatorios() {
       e.horas += horas(ap);
       usado += ap.usado;
       obtido += obtidoDe(ap);
-      const po = ap.po ?? 0;
-      const lixo = ap.lixo ?? 0;
-      const contaminado = ap.contaminado ?? 0;
-      perdas.po += po;
-      perdas.lixo += lixo;
-      perdas.contaminado += contaminado;
-      perdas.outra += Math.max(0, q - po - lixo - contaminado);
+      let classificado = 0;
+      for (const [tipo, peso] of Object.entries(perdasDe(ap))) {
+        perdas[tipo] = (perdas[tipo] ?? 0) + peso;
+        classificado += peso;
+      }
+      if (q > classificado) perdas[SEM_CATEGORIA] = (perdas[SEM_CATEGORIA] ?? 0) + q - classificado;
     }
 
     const ult3 = months.slice(-3).reduce((s, m) => s + m.kg, 0) / 3;
@@ -164,7 +160,15 @@ export function Relatorios() {
       clientes: top(cli),
       materiais: top(mat),
       etapas: Object.values(etapas).sort((a, b) => b.usado - a.usado),
-      perdas,
+      perdas: Object.entries(perdas)
+        .filter(([, peso]) => peso > 0)
+        .sort(([a, x], [b, y]) => (a === SEM_CATEGORIA) - (b === SEM_CATEGORIA) || y - x)
+        .map(([tipo, peso], i) => ({
+          key: tipo,
+          label: tipo === SEM_CATEGORIA ? tipo : title(tipo),
+          peso,
+          color: tipo === SEM_CATEGORIA ? 'var(--subtle)' : CORES_PERDA[i % CORES_PERDA.length]
+        })),
       perdaTotal: Object.values(perdas).reduce((s, v) => s + v, 0),
       usado,
       rendimento: usado ? obtido / usado : null
@@ -333,22 +337,22 @@ export function Relatorios() {
               <div className="perdas">
                 <p className="label">Composição das perdas · {kg(r.perdaTotal)}</p>
                 <div className="stack">
-                  {PERDAS.filter(p => r.perdas[p.key] > 0).map(p => (
+                  {r.perdas.map(p => (
                     <motion.div
                       key={p.key}
-                      style={{background: p.color, flexGrow: r.perdas[p.key]}}
+                      style={{background: p.color, flexGrow: p.peso}}
                       initial={{opacity: 0}}
                       animate={{opacity: 1}}
-                      title={`${p.label}: ${kg(r.perdas[p.key])}`}
+                      title={`${p.label}: ${kg(p.peso)}`}
                     />
                   ))}
                 </div>
                 <div className="legend">
-                  {PERDAS.map(p => (
+                  {r.perdas.map(p => (
                     <span key={p.key}>
                       <i style={{background: p.color}} />
-                      {p.label} <b>{kg(r.perdas[p.key])}</b>
-                      <small>{pct(r.perdas[p.key] / r.perdaTotal).replace('+', '')}</small>
+                      {p.label} <b>{kg(p.peso)}</b>
+                      <small>{pct(p.peso / r.perdaTotal).replace('+', '')}</small>
                     </span>
                   ))}
                 </div>

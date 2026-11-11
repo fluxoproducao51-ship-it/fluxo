@@ -1,7 +1,7 @@
 import {useMemo, useState} from 'react';
 import {useStore} from '../state/store.jsx';
 import {date, hours, kg, materialDe, pct, title, today} from '../state/data.js';
-import {horas, obtidoDe, pausado, quebraDe} from '../state/balance.js';
+import {horas, obtidoDe, pausado, perdasDe, quebraDe} from '../state/balance.js';
 import {Status} from '../ui/Status.jsx';
 import {Chips} from './Producao.jsx';
 
@@ -63,6 +63,12 @@ export function HistoricoMaquinas({initial}) {
     }, {})
   ).sort((a, b) => b[1].min - a[1].min);
   const dias = new Set(lista.map(ap => ap.data)).size;
+  const porPerda = Object.entries(
+    lista.reduce((acc, ap) => {
+      for (const [tipo, peso] of Object.entries(perdasDe(ap))) acc[tipo] = (acc[tipo] ?? 0) + peso;
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1] - a[1]);
 
   return (
     <main className="page">
@@ -149,6 +155,22 @@ export function HistoricoMaquinas({initial}) {
                 <b>{title(motivo)}</b>
                 <span>
                   {v.n} {v.n === 1 ? 'vez' : 'vezes'} · {tempo(v.min)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {porPerda.length > 0 && (
+        <section>
+          <h2 className="section-title">Perdas por tipo</h2>
+          <div className="hist-motivos">
+            {porPerda.map(([tipo, peso]) => (
+              <div key={tipo} className="hist-motivo">
+                <b>{title(tipo)}</b>
+                <span>
+                  {kg(peso)} · {usado ? pct(peso / usado).replace('+', '') : '—'} do processado
                 </span>
               </div>
             ))}
