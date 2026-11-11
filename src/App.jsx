@@ -6,6 +6,7 @@ import {Toast} from './ui/Toast.jsx';
 import {Painel} from './pages/Painel.jsx';
 import {Pcp} from './pages/Pcp.jsx';
 import {Maquinas} from './pages/Maquinas.jsx';
+import {HistoricoMaquinas} from './pages/HistoricoMaquinas.jsx';
 import {Mapa} from './pages/Mapa.jsx';
 import {Recebimento} from './pages/Recebimento.jsx';
 import {Producao} from './pages/Producao.jsx';
@@ -31,6 +32,7 @@ const SCREENS = {
   pcp: Pcp,
   rotas: RotasPagina,
   maquinas: Maquinas,
+  historicomaquinas: HistoricoMaquinas,
   materiais: MateriaisPagina,
   mapa: Mapa,
   recebimento: Recebimento,

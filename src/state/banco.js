@@ -13,7 +13,7 @@ const TABELAS = [
   {tabela: 'materiais', chave: 'nome', de: s => s.cadastros.materiais, colunas: ['nome', 'ativo']},
   {tabela: 'clientes', chave: 'nome', de: s => s.cadastros.clientes, colunas: ['nome', 'ativo']},
   {tabela: 'cores', chave: 'nome', de: s => s.cadastros.cores, colunas: ['nome', 'ativo']},
-  {tabela: 'maquinas', chave: 'nome', de: s => s.cadastros.processos, colunas: ['nome', 'ativo', 'galpao', 'capacidade']},
+  {tabela: 'maquinas', chave: 'nome', de: s => s.cadastros.processos, colunas: ['nome', 'ativo', 'galpao', 'capacidade', 'setor']},
   {tabela: 'rotas', chave: 'id', de: s => s.cadastros.rotas, colunas: ['id', 'nome', 'palavras', 'materiais', 'etapas', 'ativo']},
   {
     tabela: 'lotes',

@@ -1186,3 +1186,38 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
   .row.stock-row.com-excluir { grid-template-columns: 36px 90px minmax(0, 1fr) 90px 124px; }
 }
 .row[role="button"] { cursor: pointer; }
+
+/* ---------- Weighing volume by volume ---------- */
+.volumes-topo { display: flex; align-items: flex-end; gap: 14px; margin-top: 18px; }
+.volumes-topo .field { width: 170px; flex: none; }
+.volumes-topo small { color: var(--subtle); font-size: 12px; padding-bottom: 10px; }
+.volumes-qtd { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+.volumes { list-style: none; margin: 14px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 10px; max-height: 360px; overflow: auto; }
+.volumes li { display: grid; grid-template-columns: 82px minmax(0, 1fr) 26px; align-items: center; gap: 8px; }
+.volume-nome { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.volume-peso { position: relative; }
+.volume-peso .input { font-family: var(--mono); font-size: 17px; padding-right: 36px; text-align: right; }
+.volumes li.sem-peso .input { border-color: var(--stop); }
+.volume-x { width: 26px; height: 26px; display: grid; place-items: center; color: var(--subtle); }
+.volume-x:hover { color: var(--stop); background: var(--surface-2); }
+.chao .volume-peso .input { height: 48px; font-size: 20px; }
+
+/* ---------- Volumes inside a lot ---------- */
+.lote-volumes { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.lote-volume { border: 1px solid var(--line); background: var(--surface-2); padding: 6px 8px; display: flex; flex-direction: column; }
+.lote-volume span { font-size: 11px; color: var(--muted); }
+.lote-volume b { font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+.lote-volumes-resumo { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: -2px 0 8px; }
+.lote-volumes-resumo b { color: var(--fg); font-family: var(--mono); font-weight: 600; }
+.maq-filtro { width: 190px; margin-left: auto; height: 36px; }
+
+/* ---------- Machine history ---------- */
+.hist-maquina { width: 280px; }
+.hist-cabecalho { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); }
+.hist-cabecalho b { font-size: 16px; color: var(--fg); }
+.hist-agora { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.hist-motivos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.hist-motivo { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.hist-motivo span { font-size: 12px; color: var(--muted); }
+.hist-tabela tbody tr { cursor: pointer; }
+@media (max-width: 860px) { .hist-maquina { width: 100%; } .hist-agora { margin-left: 0; } }

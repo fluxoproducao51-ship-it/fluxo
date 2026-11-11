@@ -7,11 +7,12 @@ import {parseKg} from '../ui/Dialog.jsx';
 import {Icon} from '../ui/Icon.jsx';
 import {Status} from '../ui/Status.jsx';
 
-const VAZIO = {nome: '', galpao: '', capacidade: ''};
+const VAZIO = {nome: '', setor: '', galpao: '', capacidade: ''};
 // "EXTRUSAO" and "EXTRUSÃO" are the same machine.
+const paraEditar = m => ({nome: m.nome, setor: m.setor ?? '', galpao: m.galpao ?? '', capacidade: m.capacidade ? String(m.capacidade) : ''});
 const semAcento = texto => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-function Campos({valor, onChange, comNome, onEnter}) {
+function Campos({valor, onChange, comNome, onEnter, setores}) {
   const set = key => e => onChange({...valor, [key]: e.target.value});
   const tecla = e => e.key === 'Enter' && onEnter?.();
   return (
@@ -22,6 +23,23 @@ function Campos({valor, onChange, comNome, onEnter}) {
           <input className="input" value={valor.nome} onChange={set('nome')} onKeyDown={tecla} placeholder="Ex.: Extrusora 2" autoFocus />
         </label>
       )}
+      <label className="field">
+        <span>Setor</span>
+        <input
+          className="input"
+          list="setores-maquina"
+          value={valor.setor}
+          onChange={e => onChange({...valor, setor: e.target.value.toUpperCase()})}
+          onKeyDown={tecla}
+          placeholder="Ex.: Moagem"
+          autoFocus={!comNome}
+        />
+        <datalist id="setores-maquina">
+          {setores.map(st => (
+            <option key={st} value={st} />
+          ))}
+        </datalist>
+      </label>
       <label className="field">
         <span>Galpão</span>
         <select className="input" value={valor.galpao} onChange={set('galpao')}>
@@ -42,17 +60,24 @@ function Campos({valor, onChange, comNome, onEnter}) {
 }
 
 export function Maquinas() {
-  const {cadastros, abertos, balances, cadastro, salvarMaquina, notify} = useStore();
+  const {cadastros, abertos, balances, cadastro, salvarMaquina, notify, go} = useStore();
   const [excluindo, setExcluindo] = useState(null);
   const [nova, setNova] = useState(VAZIO);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState(null);
 
+  const [setorFiltro, setSetorFiltro] = useState('');
+  // Sectors already in use, so new machines reuse the same spelling.
+  const setores = useMemo(() => [...new Set(cadastros.processos.map(m => m.setor).filter(Boolean))].sort(), [cadastros.processos]);
+  const semSetor = cadastros.processos.filter(m => !m.setor).length;
   const q = busca.trim().toUpperCase();
   const lista = useMemo(
-    () => [...cadastros.processos].filter(m => semAcento(m.nome).includes(semAcento(q))).sort((a, b) => b.ativo - a.ativo || a.nome.localeCompare(b.nome)),
-    [cadastros.processos, q]
+    () =>
+      [...cadastros.processos]
+        .filter(m => semAcento(m.nome).includes(semAcento(q)))
+        .filter(m => !setorFiltro || (setorFiltro === '-' ? !m.setor : m.setor === setorFiltro)).sort((a, b) => b.ativo - a.ativo || a.nome.localeCompare(b.nome)),
+    [cadastros.processos, q, setorFiltro]
   );
 
   const adicionar = () => {
@@ -60,7 +85,7 @@ export function Maquinas() {
     if (!nome) return setErro('Informe o nome da máquina.');
     const repetida = cadastros.processos.find(m => semAcento(m.nome) === semAcento(nome));
     if (repetida) return setErro(`${title(repetida.nome)} já está cadastrada.`);
-    salvarMaquina({nome, ativo: true, galpao: nova.galpao || null, capacidade: parseKg(nova.capacidade)});
+    salvarMaquina({nome, ativo: true, setor: nova.setor.trim() || null, galpao: nova.galpao || null, capacidade: parseKg(nova.capacidade)});
     notify({status: 'Máquina cadastrada', title: title(nome), detail: 'Já pode entrar nas rotas', icon: 'plus'});
     setNova(VAZIO);
     setErro(null);
@@ -79,7 +104,7 @@ export function Maquinas() {
   };
 
   const salvarEdicao = () => {
-    salvarMaquina({nome: editando.nome, galpao: editando.galpao || null, capacidade: parseKg(editando.capacidade)});
+    salvarMaquina({nome: editando.nome, setor: editando.setor.trim() || null, galpao: editando.galpao || null, capacidade: parseKg(editando.capacidade)});
     setEditando(null);
   };
 
@@ -93,15 +118,33 @@ export function Maquinas() {
       <section className="panel">
         <h2 className="section-title">Nova máquina</h2>
         <div className="maq-form">
-          <Campos valor={nova} onChange={setNova} comNome onEnter={adicionar} />
+          <Campos valor={nova} onChange={setNova} comNome onEnter={adicionar} setores={setores} />
           <Button variant="primary" icon="plus" label="Cadastrar" onClick={adicionar} />
         </div>
         {erro && <p className="wiz-err" style={{margin: '8px 0 0'}}>{erro}</p>}
       </section>
 
+      {semSetor > 0 && (
+        <div className="sem-rota">
+          <b>
+            {semSetor} {semSetor === 1 ? 'máquina ainda sem setor' : 'máquinas ainda sem setor'}.
+          </b>{' '}
+          Clique em “Definir setor” na linha da máquina para completar.
+        </div>
+      )}
+
       <section>
         <div className="section-head">
           <h2 className="section-title">{cadastros.processos.filter(m => m.ativo).length} máquinas ativas</h2>
+          <select className="input maq-filtro" value={setorFiltro} onChange={e => setSetorFiltro(e.target.value)} aria-label="Filtrar por setor">
+            <option value="">Todos os setores</option>
+            {setores.map(st => (
+              <option key={st} value={st}>
+                {title(st)}
+              </option>
+            ))}
+            {semSetor > 0 && <option value="-">Sem setor ({semSetor})</option>}
+          </select>
           <label className="search" style={{maxWidth: 240}}>
             <Icon name="search" size={16} />
             <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar máquina" aria-label="Buscar máquina" />
@@ -112,6 +155,7 @@ export function Maquinas() {
             <thead>
               <tr>
                 <th>Máquina</th>
+                <th>Setor</th>
                 <th>Galpão</th>
                 <th className="n">Capacidade</th>
                 <th className="n">Rotas</th>
@@ -127,10 +171,10 @@ export function Maquinas() {
                 if (editando?.nome === m.nome)
                   return (
                     <tr key={m.nome} className="maq-editando">
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div className="maq-form">
                           <b className="maq-editando-nome">{title(m.nome)}</b>
-                          <Campos valor={editando} onChange={setEditando} onEnter={salvarEdicao} />
+                          <Campos valor={editando} onChange={setEditando} onEnter={salvarEdicao} setores={setores} />
                           <Button variant="primary" icon="check" label="Salvar" onClick={salvarEdicao} />
                           <Button variant="ghost" label="Cancelar" onClick={() => setEditando(null)} />
                         </div>
@@ -140,6 +184,15 @@ export function Maquinas() {
                 return (
                   <tr key={m.nome} className={m.ativo ? '' : 'maq-inativa'}>
                     <td style={{fontWeight: 500}}>{title(m.nome)}</td>
+                    <td>
+                      {m.setor ? (
+                        title(m.setor)
+                      ) : (
+                        <button type="button" className="trail-link" onClick={() => setEditando(paraEditar(m))}>
+                          Definir setor
+                        </button>
+                      )}
+                    </td>
                     <td>{m.galpao ? title(m.galpao) : '—'}</td>
                     <td className="n">{m.capacidade ? `${m.capacidade.toLocaleString('pt-BR')} kg/h` : '—'}</td>
                     <td className="n">{rotas}</td>
@@ -190,11 +243,8 @@ export function Maquinas() {
                         )
                       ) : (
                         <span className="maq-botoes">
-                          <Button
-                            size="sm"
-                            label="Editar"
-                            onClick={() => setEditando({nome: m.nome, galpao: m.galpao ?? '', capacidade: m.capacidade ? String(m.capacidade) : ''})}
-                          />
+                          <Button size="sm" icon="chart" label="Histórico" onClick={() => go('historicomaquinas', {maquina: m.nome})} />
+                          <Button size="sm" label="Editar" onClick={() => setEditando(paraEditar(m))} />
                           <Button variant="danger" size="sm" icon="trash" label="Excluir" onClick={() => setExcluindo(m.nome)} />
                         </span>
                       )}

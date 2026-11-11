@@ -38,6 +38,10 @@ export const SETORES = [...ETAPAS, 'MOAGEM 500', 'LAVAGEM DE GRÃO', 'DENSIDADE'
 export const GALPOES = ['GALPÃO 01', 'GALPÃO 02', 'GALPÃO 03'];
 export const COMPRAS = ['PRODUTO', 'BENEFICIAMENTO', 'RETRABALHO', 'DEVOLUÇÃO'];
 export const EMBALAGENS = ['BIG BAG', 'SACARIA', 'CAÇAMBA', 'PALETE'];
+
+// How one weighed unit is called for each kind of packaging.
+const VOLUME = {'BIG BAG': ['Big bag', 'Big bags'], SACARIA: ['Saco', 'Sacos'], 'CAÇAMBA': ['Caçamba', 'Caçambas'], PALETE: ['Palete', 'Paletes']};
+export const nomeVolume = (embalagem, n = 1) => (VOLUME[embalagem] ?? ['Volume', 'Volumes'])[n === 1 ? 0 : 1];
 export const TIPOS = ['MOIDO', 'GRANULADO', 'PEÇAS'];
 export const CORES = ['BRANCO', 'CINZA', 'COLORIDO', 'NATURAL', 'PRETO'];
 

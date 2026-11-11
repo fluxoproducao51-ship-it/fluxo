@@ -1,8 +1,8 @@
 import {useRef, useState} from 'react';
-import {AnimatePresence, motion} from 'framer-motion';
+import {motion} from 'framer-motion';
 import {useStore} from '../state/store.jsx';
 import {
-  COMPRAS, EMBALAGENS, GALPOES, TIPOS, date, divergencia, kg, materialDe, nextLote, pct, pesado, title, today
+  COMPRAS, EMBALAGENS, GALPOES, TIPOS, date, divergencia, kg, materialDe, nextLote, nomeVolume, pct, pesado, title, today
 } from '../state/data.js';
 import {Button} from '../ui/Button.jsx';
 import {Icon} from '../ui/Icon.jsx';
@@ -78,8 +78,8 @@ export function Recebimento({onGo}) {
   const defineRota = pode(perfil, 'editarRota');
   const verFicha = pode(perfil, 'verFicha');
   const [form, setForm] = useState(EMPTY);
-  const [bags, setBags] = useState([]);
-  const [peso, setPeso] = useState('');
+  // One line per volume that arrived, each with its own weight from the scale.
+  const [pesos, setPesos] = useState(['']);
   const [tried, setTried] = useState(false);
   // The route follows the material until someone picks or edits one by hand.
   const [etapas, setEtapas] = useState(null);
@@ -87,7 +87,7 @@ export function Recebimento({onGo}) {
   const sugerida = sugerirRota(form.material, rotas);
   const escolhida = form.rotaId ? rotas.find(r => r.id === form.rotaId) : sugerida;
   const rota = etapas ?? escolhida?.etapas ?? [];
-  const scale = useRef(null);
+  const campos = useRef([]);
   // The number on the paperwork can be typed in; left blank, the next one in sequence is used.
   const sugerido = nextLote(lotes);
   const digitado = form.numero.trim().toUpperCase();
@@ -100,17 +100,33 @@ export function Recebimento({onGo}) {
   // Logistics can't invent a material: only what the PCP already linked to a route.
   const configurados = materiaisConfigurados(cadastros);
 
-  const total = bags.reduce((s, b) => s + b, 0);
+  const bags = pesos.map(parseKg);
+  const semPeso = bags.map((b, i) => (b ? null : i + 1)).filter(Boolean);
+  const pesados = bags.filter(Boolean);
+  const total = pesados.reduce((s, b) => s + b, 0);
+  const volume = nomeVolume(form.embalagem);
   const nf = parseKg(form.pesoNF);
   const diff = nf && total ? (total - nf) / nf : null;
-  const missing = [!form.cliente && 'cliente', !form.material && 'material', !bags.length && 'pesagens', defineRota && !rota.length && 'rota', numeroRepetido && 'número do lote (já existe)'].filter(Boolean);
+  const missing = [!form.cliente && 'cliente', !form.material && 'material', !pesos.length && 'pesagens', semPeso.length > 0 && `peso ${semPeso.length === 1 ? 'do' : 'dos'} ${nomeVolume(form.embalagem, semPeso.length).toLowerCase()} ${semPeso.join(', ')}`, defineRota && !rota.length && 'rota', numeroRepetido && 'número do lote (já existe)'].filter(Boolean);
 
-  const addBag = () => {
-    const value = parseKg(peso);
-    if (!value) return;
-    setBags(b => [...b, value]);
-    setPeso('');
-    scale.current?.focus();
+  const focar = i => setTimeout(() => campos.current[i]?.focus(), 0);
+  const mudarQuantidade = texto => {
+    const n = Math.min(200, Math.max(0, Number(texto.replace(/\D/g, '')) || 0));
+    setPesos(lista => (n > lista.length ? [...lista, ...Array(n - lista.length).fill('')] : lista.slice(0, n)));
+  };
+  const mudarPeso = (i, valor) => setPesos(lista => lista.map((p, j) => (j === i ? valor : p)));
+  const adicionarVolume = () => {
+    setPesos(lista => [...lista, '']);
+    focar(pesos.length);
+  };
+  const removerVolume = i => setPesos(lista => lista.filter((_, j) => j !== i));
+  // Enter jumps to the next volume; on the last one it just leaves the field.
+  const proximo = i => {
+    const alvo = i < pesos.length - 1 ? campos.current[i + 1] : null;
+    if (alvo) {
+      alvo.focus();
+      alvo.select();
+    } else campos.current[i]?.blur();
   };
 
   const submit = () => {
@@ -128,7 +144,7 @@ export function Recebimento({onGo}) {
       tipo: form.tipo,
       embalagem: form.embalagem,
       conferente: perfil.nome.toUpperCase(),
-      bags,
+      bags: pesados,
       pesoNF: nf,
       molhado: form.molhado,
       obs: form.obs,
@@ -143,11 +159,11 @@ export function Recebimento({onGo}) {
     notify({
       status: defineRota ? 'Lote criado · aguardando início' : 'Lote criado · enviado ao PCP',
       title: `Lote ${numero} · ${title(cliente)}`,
-      detail: `${bags.length} ${bags.length === 1 ? "volume" : "volumes"} · ${kg(total)} → ${rota.length ? title(rota[0]) : 'aguardando rota do PCP'}`,
+      detail: `${pesados.length} ${nomeVolume(form.embalagem, pesados.length).toLowerCase()} · ${kg(total)} → ${rota.length ? title(rota[0]) : 'aguardando rota do PCP'}`,
       art: {seed: numero, material, tipo: form.tipo}
     });
     setForm(EMPTY);
-    setBags([]);
+    setPesos(['']);
     setEtapas(null);
     setTried(false);
   };
@@ -317,46 +333,49 @@ export function Recebimento({onGo}) {
               <div style={{fontSize: 24, fontWeight: 600, }}>Lote {numero}</div>
             </div>
           </div>
-          <div style={{display: 'flex', gap: 8, marginTop: 18}}>
-            <div style={{position: 'relative', flex: 1}}>
+          <div className="volumes-topo">
+            <label className="field">
+              <span>Quantidade de {nomeVolume(form.embalagem, 2).toLowerCase()}</span>
               <input
-                ref={scale}
-                className="input scale-input"
+                className="input volumes-qtd"
                 inputMode="numeric"
+                value={pesos.length || ''}
+                onChange={e => mudarQuantidade(e.target.value)}
+                onFocus={e => e.target.select()}
                 placeholder="0"
-                value={peso}
-                onChange={e => setPeso(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addBag()}
-                aria-label="Peso do volume"
               />
-              <span className="scale-unit">kg</span>
-            </div>
-            <Button variant="primary" size="lg" icon="plus" label="Volume" onClick={addBag} style={{height: 76}} />
+            </label>
+            <small>Informe quantos chegaram e lance o peso de cada um. Enter passa para o próximo.</small>
           </div>
-          <div className="bags">
-            <AnimatePresence initial={false}>
-              {bags.map((b, i) => (
-                <motion.span
-                  key={`${i}-${b}`}
-                  className="bag"
-                  layout
-                  initial={{opacity: 0, scale: 0.6}}
-                  animate={{opacity: 1, scale: 1}}
-                  exit={{opacity: 0, scale: 0.6}}
-                  transition={{type: 'spring', stiffness: 500, damping: 30}}
-                >
-                  {b.toLocaleString('pt-BR')}
-                  <button type="button" aria-label="Remover" onClick={() => setBags(list => list.filter((_, j) => j !== i))}>
-                    <Icon name="x" size={12} stroke={2.5} />
-                  </button>
-                </motion.span>
-              ))}
-            </AnimatePresence>
-            {!bags.length && <span style={{color: 'var(--subtle)', fontSize: 14, alignSelf: 'center'}}>Digite o peso e tecle Enter para cada volume.</span>}
-          </div>
+          <ol className="volumes">
+            {pesos.map((p, i) => (
+              <li key={i} className={tried && !parseKg(p) ? 'sem-peso' : ''}>
+                <span className="volume-nome">
+                  {volume} {i + 1}
+                </span>
+                <div className="volume-peso">
+                  <input
+                    ref={el => (campos.current[i] = el)}
+                    className="input"
+                    inputMode="numeric"
+                    value={p}
+                    onChange={e => mudarPeso(i, e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && proximo(i)}
+                    placeholder="0"
+                    aria-label={`Peso do ${volume.toLowerCase()} ${i + 1}`}
+                  />
+                  <span className="scale-unit">kg</span>
+                </div>
+                <button type="button" className="volume-x" aria-label={`Remover ${volume.toLowerCase()} ${i + 1}`} onClick={() => removerVolume(i)}>
+                  <Icon name="x" size={14} />
+                </button>
+              </li>
+            ))}
+          </ol>
+          <Button icon="plus" label={`Adicionar ${volume.toLowerCase()}`} onClick={adicionarVolume} />
           <div className="totals">
             <div className="total">
-              <span>Pesado ({bags.length})</span>
+              <span>Pesado ({pesados.length} de {pesos.length})</span>
               <b>{total.toLocaleString('pt-BR')}</b>
             </div>
             <div className="total">
@@ -394,7 +413,10 @@ export function Recebimento({onGo}) {
                 <span>{date(l.data)}</span>
               </div>
               <div className="lot-cap">{title(l.cliente)}</div>
-              <div className="lot-sub">{kg(pesado(l))}</div>
+              <div className="lot-sub">
+                {l.bags.length > 0 && `${l.bags.length} ${nomeVolume(l.embalagem, l.bags.length).toLowerCase()} · `}
+                {kg(pesado(l))}
+              </div>
             </button>
           ))}
         </div>

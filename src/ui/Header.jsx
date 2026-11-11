@@ -25,7 +25,8 @@ const GROUPS = [
       {id: 'pcp', label: 'Central do PCP', icon: 'bell'},
       {id: 'mapa', label: 'Mapa do lote', icon: 'flow'},
       {id: 'lotes', label: 'Lotes', icon: 'layers'},
-      {id: 'relatorios', label: 'Relatórios', icon: 'chart'}
+      {id: 'relatorios', label: 'Relatórios', icon: 'chart'},
+      {id: 'historicomaquinas', label: 'Histórico por máquina', icon: 'engrenagem'}
     ]
   },
   {

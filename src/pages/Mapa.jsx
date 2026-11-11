@@ -5,7 +5,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {useStore} from '../state/store.jsx';
-import {date, divergencia, hours, kg, materialDe, pct, title} from '../state/data.js';
+import {date, divergencia, hours, kg, materialDe, nomeVolume, pct, title} from '../state/data.js';
 import {horasLiquidas, obtidoDe, pausado, quebraDe} from '../state/balance.js';
 import {arvoreDeLotes, construirMapa, filhosNoMapa, noEntrada, noEstoque, ondeEsta, posicaoDoLote} from '../state/mapa.js';
 import {etapasTravadas} from '../state/rotas.js';
@@ -435,13 +435,25 @@ function DadosDoLote({lote, b, onFechar}) {
       {lote.bags.length > 0 && (
         <>
           <p className="label mapa-subtitulo">
-            {lote.bags.length} {lote.bags.length === 1 ? 'pesagem' : 'pesagens'}
+            {lote.bags.length} {nomeVolume(lote.embalagem, lote.bags.length).toLowerCase()} pesados
           </p>
-          <div className="bags" style={{marginTop: 0}}>
-            {lote.bags.map((peso, i) => (
-              <span key={i} className="bag" style={{paddingRight: 8}}>
-                {peso.toLocaleString('pt-BR')}
+          <div className="lote-volumes-resumo">
+            <span>Total <b>{kg(lote.bags.reduce((s, p) => s + p, 0))}</b></span>
+            <span>Média <b>{kg(Math.round(lote.bags.reduce((s, p) => s + p, 0) / lote.bags.length))}</b></span>
+            {lote.bags.length > 1 && (
+              <span>
+                Menor <b>{kg(Math.min(...lote.bags))}</b> · Maior <b>{kg(Math.max(...lote.bags))}</b>
               </span>
+            )}
+          </div>
+          <div className="lote-volumes">
+            {lote.bags.map((peso, i) => (
+              <div key={i} className="lote-volume">
+                <span>
+                  {nomeVolume(lote.embalagem)} {i + 1}
+                </span>
+                <b>{kg(peso)}</b>
+              </div>
             ))}
           </div>
         </>
