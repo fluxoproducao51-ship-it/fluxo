@@ -213,6 +213,7 @@ function NoDevolucao({data}) {
       <Linha label="Do que entrou">{pct(data.peso / data.entrada).replace('+', '')}</Linha>
       {motivos.length > 0 && <div className="no-sub">{motivos.join(', ')}</div>}
       {nfs.length > 0 && <div className="no-sub">NF {nfs.join(', ')}</div>}
+      <div className="no-dica">Clique para ver os detalhes</div>
     </div>
   );
 }
@@ -372,6 +373,98 @@ function Cabecalho({titulo, onFechar}) {
       <button type="button" className="no-x" aria-label="Fechar detalhe" onClick={onFechar}>
         <Icon name="x" size={14} />
       </button>
+    </div>
+  );
+}
+
+// Every bag sent back from this lot: when, why, who, and the invoice it went on.
+function DetalheDevolucao({lote, onFechar}) {
+  const {devolucoes, desfazerDevolucao, notify, perfil} = useStore();
+  const [desfazendo, setDesfazendo] = useState(null);
+  const lista = devolucoes
+    .filter(d => d.lote === lote.lote)
+    .sort((a, b) => (b.criadoEm ?? b.data).localeCompare(a.criadoEm ?? a.data) || a.bag - b.bag);
+  const nome = nomeVolume(lote.embalagem);
+  const total = lista.reduce((s, d) => s + d.peso, 0);
+  const entrada = lote.bags.reduce((s, p) => s + p, 0);
+  const podeDesfazer = pode(perfil, 'devolver');
+  const quando = d => {
+    const hora = d.criadoEm ? new Date(d.criadoEm).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : null;
+    return `${date(d.data, true)}${hora ? ` às ${hora}` : ''}`;
+  };
+  return (
+    <div className="mapa-detalhe">
+      <Cabecalho titulo="Devolução ao cliente" onFechar={onFechar} />
+      <div className="facts mapa-fatos">
+        <div className="fact">
+          <span>Devolvido</span>
+          <b>{kg(total)}</b>
+        </div>
+        <div className="fact">
+          <span>{nomeVolume(lote.embalagem, 2)}</span>
+          <b>
+            {lista.length} de {lote.bags.length}
+          </b>
+        </div>
+        <div className="fact">
+          <span>Do que entrou</span>
+          <b>{entrada ? pct(total / entrada).replace('+', '') : '—'}</b>
+        </div>
+        <div className="fact">
+          <span>Cliente</span>
+          <b>{title(lote.cliente) || '—'}</b>
+        </div>
+      </div>
+      {lista.length ? (
+        <div className="mapa-aps" style={{marginTop: 4}}>
+          {lista.map(d => (
+            <div key={d.id} className="mapa-ap devolucao-item">
+              <b>
+                {nome} {d.bag + 1} · {kg(d.peso)}
+              </b>
+              <span>
+                <em>Quando</em> {quando(d)}
+              </span>
+              <span>
+                <em>Motivo</em> {title(d.motivo) || '—'}
+              </span>
+              <span>
+                <em>Devolvido por</em> {title(d.responsavel) || '—'}
+              </span>
+              <span>
+                <em>NF de devolução</em> {d.nf || 'Sem NF'}
+              </span>
+              {d.obs && (
+                <span>
+                  <em>Observação</em> {d.obs}
+                </span>
+              )}
+              {podeDesfazer &&
+                (desfazendo === d.id ? (
+                  <span className="bag-acoes">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      label="Sim, desfazer"
+                      onClick={() => {
+                        desfazerDevolucao(d.id);
+                        setDesfazendo(null);
+                        notify({status: 'Devolução desfeita', title: `Lote ${lote.lote} · ${nome} ${d.bag + 1}`, detail: `${kg(d.peso)} voltaram para o lote`, icon: 'refresh'});
+                      }}
+                    />
+                    <Button size="sm" label="Não" onClick={() => setDesfazendo(null)} />
+                  </span>
+                ) : (
+                  <button type="button" className="bag-link" onClick={() => setDesfazendo(d.id)}>
+                    Desfazer devolução
+                  </button>
+                ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="page-sub">Nenhuma devolução neste lote.</p>
+      )}
     </div>
   );
 }
@@ -677,6 +770,7 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
     if (no.data.lote !== foco) return onFoco(no.data.lote, Boolean(mudou));
     if (no.type === 'etapa') setSelecionado(no.id);
     else if (no.type === 'entrada') setSelecionado(DADOS);
+    else if (no.type === 'devolucao') setSelecionado(no.id);
     else setSelecionado(null);
   };
   const noSelecionado = selecionado && selecionado !== DADOS ? nodes.find(n => n.id === selecionado) : null;
@@ -761,7 +855,8 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
         {((editavel && paleta) || noSelecionado || selecionado === DADOS) && (
           <aside className="mapa-direita">
             {selecionado === DADOS && <DadosDoLote lote={lote} b={b} onFechar={() => setSelecionado(null)} />}
-            {noSelecionado && <Detalhe no={noSelecionado} onFechar={() => setSelecionado(null)} onIniciar={pode(perfil, 'apontar') ? () => go('apontar', {lote: foco}) : null} />}
+            {noSelecionado?.type === 'devolucao' && <DetalheDevolucao lote={lote} onFechar={() => setSelecionado(null)} />}
+            {noSelecionado && noSelecionado.type !== 'devolucao' && <Detalhe no={noSelecionado} onFechar={() => setSelecionado(null)} onIniciar={pode(perfil, 'apontar') ? () => go('apontar', {lote: foco}) : null} />}
             {editavel && paleta && <Maquinas alvo={alvo} rota={rota} travadas={travadas} onInserir={inserir} onCancelarAlvo={() => setAlvo(null)} />}
           </aside>
         )}

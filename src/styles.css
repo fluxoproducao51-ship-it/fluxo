@@ -1240,6 +1240,10 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .devolver-total b { color: var(--fg); }
 
 /* ---------- Return leg on the lot map ---------- */
-.no-devolucao { width: 220px; border-top-color: var(--stop); cursor: default; background: color-mix(in srgb, var(--stop) 4%, white); }
+.no-devolucao { width: 220px; border-top-color: var(--stop); cursor: pointer; background: color-mix(in srgb, var(--stop) 4%, white); }
 .react-flow__edge-path.aresta.devolucao { stroke: var(--stop); stroke-width: 2; stroke-dasharray: 6 4; }
 .aresta-peso.devolucao { border-color: var(--stop); color: var(--stop); }
+.devolucao-item { gap: 2px; border-left: 3px solid var(--stop); }
+.devolucao-item span { display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
+.devolucao-item span em { font-style: normal; color: var(--subtle); }
+.devolucao-item .bag-acoes { display: flex; }

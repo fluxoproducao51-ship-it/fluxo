@@ -250,7 +250,9 @@ function Devolucao({lote: id, bag}) {
         nf: form.nf.trim() || null,
         data: form.data,
         responsavel: perfil.nome.toUpperCase(),
-        obs: form.obs.trim() || null
+        obs: form.obs.trim() || null,
+        // Shown on screen right away; the database stamps its own time on insert.
+        criadoEm: new Date(agora).toISOString()
       }))
     );
     notify({
