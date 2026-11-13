@@ -12,10 +12,11 @@ const LISTAS = [
   {value: 'materiais', label: 'Matéria-prima', hint: 'Materiais aceitos no recebimento e na separação.'},
   {value: 'clientes', label: 'Clientes', hint: 'Origem do material e destino dos envios.'},
   {value: 'cores', label: 'Cores', hint: 'Cor do material no recebimento.'},
-  {value: 'tiposPerda', label: 'Tipos de perda', hint: 'O que o operador pode escolher ao classificar a perda de um processo.'}
+  {value: 'tiposPerda', label: 'Tipos de perda', hint: 'O que o operador pode escolher ao classificar a perda de um processo.'},
+  {value: 'motivosDevolucao', label: 'Motivos de devolução', hint: 'Por que um big bag recebido volta para o cliente.'}
 ];
 
-const REMOVIVEIS = ['materiais', 'clientes', 'cores', 'tiposPerda'];
+const REMOVIVEIS = ['materiais', 'clientes', 'cores', 'tiposPerda', 'motivosDevolucao'];
 
 export function Cadastros() {
   const {cadastros} = useStore();

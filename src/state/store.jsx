@@ -121,6 +121,10 @@ function reducer(state, action) {
         }
       };
     }
+    case 'devolver':
+      return {...state, devolucoes: [...state.devolucoes, ...action.devolucoes]};
+    case 'desfazerDevolucao':
+      return {...state, devolucoes: state.devolucoes.filter(d => d.id !== action.id)};
     case 'excluirLote':
       return semLote(state, action.lote);
     case 'removerRota':
@@ -258,6 +262,8 @@ export function StoreProvider({children, perfil, inicial}) {
       salvarMaquina: maquina => dispatch({type: 'salvarMaquina', maquina}),
       removerRota: id => dispatch({type: 'removerRota', id}),
       excluirLote: lote => dispatch({type: 'excluirLote', lote}),
+      devolver: devolucoes => dispatch({type: 'devolver', devolucoes}),
+      desfazerDevolucao: id => dispatch({type: 'desfazerDevolucao', id}),
       setMaquina: maquina => {
         try {
           localStorage.setItem(MAQUINA_KEY, maquina);

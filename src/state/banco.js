@@ -14,6 +14,7 @@ const TABELAS = [
   {tabela: 'clientes', chave: 'nome', de: s => s.cadastros.clientes, colunas: ['nome', 'ativo']},
   {tabela: 'cores', chave: 'nome', de: s => s.cadastros.cores, colunas: ['nome', 'ativo']},
   {tabela: 'tipos_perda', chave: 'nome', de: s => s.cadastros.tiposPerda, colunas: ['nome', 'ativo']},
+  {tabela: 'motivos_devolucao', chave: 'nome', de: s => s.cadastros.motivosDevolucao, colunas: ['nome', 'ativo']},
   {tabela: 'maquinas', chave: 'nome', de: s => s.cadastros.processos, colunas: ['nome', 'ativo', 'galpao', 'capacidade', 'setor']},
   {tabela: 'rotas', chave: 'id', de: s => s.cadastros.rotas, colunas: ['id', 'nome', 'palavras', 'materiais', 'etapas', 'ativo']},
   {
@@ -38,6 +39,7 @@ const TABELAS = [
   },
   {tabela: 'processos_abertos', chave: 'id', de: s => s.abertos, colunas: ['id', 'lote', 'etapa', 'setor', 'usado', 'operador', 'inicio', 'pausas']},
   {tabela: 'envios', chave: 'id', de: s => s.envios, colunas: ['id', 'lote', 'data', 'cliente', 'nf', 'responsavel', 'peso']},
+  {tabela: 'devolucoes', chave: 'id', de: s => s.devolucoes, colunas: ['id', 'lote', 'bag', 'peso', 'motivo', 'nf', 'data', 'responsavel', 'obs']},
   {tabela: 'crm_etapas', chave: 'id', de: s => s.crm.etapas, colunas: ['id', 'nome', 'ordem', 'probabilidade', 'ativo'], crm: true},
   {
     tabela: 'crm_empresas',
@@ -99,6 +101,7 @@ export async function carregarTudo(tipo) {
       clientes: de('clientes'),
       cores: de('cores'),
       tiposPerda: de('tipos_perda').sort((a, b) => (a.criadoEm ?? '').localeCompare(b.criadoEm ?? '')),
+      motivosDevolucao: de('motivos_devolucao').sort((a, b) => (a.criadoEm ?? '').localeCompare(b.criadoEm ?? '')),
       operadores,
       processos: de('maquinas'),
       rotas: de('rotas')
@@ -109,6 +112,7 @@ export async function carregarTudo(tipo) {
     apontamentos: de('apontamentos'),
     abertos: de('processos_abertos'),
     envios: de('envios'),
+    devolucoes: de('devolucoes').map(d => ({...d, peso: Number(d.peso)})),
     crm: {
       etapas: de('crm_etapas').sort((a, b) => a.ordem - b.ordem),
       empresas: de('crm_empresas'),

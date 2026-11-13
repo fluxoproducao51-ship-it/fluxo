@@ -11,6 +11,7 @@ import {materiaisConfigurados, sugerirRota} from '../state/rotas.js';
 import {pode} from '../state/perfis.js';
 import {MaterialCode} from '../ui/MaterialCode.jsx';
 import {SectionHeader} from '../ui/SectionHeader.jsx';
+import {BagsDoLote} from '../ui/BagsDoLote.jsx';
 
 const EMPTY = {
   numero: '',
@@ -49,6 +50,44 @@ const parseKg = text => {
   const n = Number(String(text).replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 };
+
+// Whole bags of a received lot going back to the customer, without leaving the receiving screen.
+function DevolucaoDeBags({lotes}) {
+  const {devolucoes} = useStore();
+  const recebidos = lotes
+    .filter(l => !l.origem && l.bags.length > 0)
+    .sort((a, b) => b.data.localeCompare(a.data) || b.lote.localeCompare(a.lote));
+  const [escolhido, setEscolhido] = useState('');
+  const lote = recebidos.find(l => l.lote === escolhido);
+  return (
+    <section className="panel">
+      <h2 className="section-title">Devolução de {nomeVolume('BIG BAG', 2).toLowerCase()}</h2>
+      <p className="page-sub" style={{fontSize: 14}}>
+        Escolha o lote e devolva ao cliente os volumes que não serão processados. Só dá para devolver antes de o lote entrar em produção.
+      </p>
+      <label className="field" style={{maxWidth: 520, marginTop: 12}}>
+        <span>Lote</span>
+        <select className="input" value={escolhido} onChange={e => setEscolhido(e.target.value)}>
+          <option value="">{recebidos.length ? 'Selecione o lote' : 'Nenhum lote recebido'}</option>
+          {recebidos.map(l => {
+            const dev = devolucoes.filter(d => d.lote === l.lote).length;
+            return (
+              <option key={l.lote} value={l.lote}>
+                {l.lote} · {title(l.cliente)} · {l.bags.length} {nomeVolume(l.embalagem, l.bags.length).toLowerCase()} · {date(l.data)}
+                {dev ? ` · ${dev} devolvido${dev === 1 ? '' : 's'}` : ''}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      {lote && (
+        <div style={{marginTop: 14}}>
+          <BagsDoLote lote={lote} />
+        </div>
+      )}
+    </section>
+  );
+}
 
 // The logistics shift at a glance.
 function ResumoDoDia({lotes}) {
@@ -402,6 +441,8 @@ export function Recebimento({onGo}) {
           </div>
         </div>
       </section>
+
+      {pode(perfil, 'devolver') && <DevolucaoDeBags lotes={lotes} />}
 
       <section>
         <SectionHeader title="Últimos recebimentos" onSeeAll={verFicha ? () => onGo('lotes') : null} />

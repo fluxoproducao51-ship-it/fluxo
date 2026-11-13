@@ -1,7 +1,8 @@
 import {useEffect, useState} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
 import {useStore} from '../state/store.jsx';
-import {kg, materialDe, title, today} from '../state/data.js';
+import {kg, materialDe, nomeVolume, title, today} from '../state/data.js';
+import {podeDevolverBag} from '../state/balance.js';
 import {Button} from './Button.jsx';
 import {MaterialCode} from './MaterialCode.jsx';
 import {oQueSaiComLote} from '../state/excluir.js';
@@ -44,6 +45,7 @@ export function Dialogs() {
           >
             {dialog.tipo === 'envio' && <Envio lote={dialog.lote} cliente={dialog.cliente} pesoSugerido={dialog.peso} />}
             {dialog.tipo === 'excluirLote' && <ExcluirLote lote={dialog.lote} />}
+            {dialog.tipo === 'devolucao' && <Devolucao lote={dialog.lote} bag={dialog.bag} />}
           </motion.div>
         </>
       )}
@@ -157,7 +159,8 @@ function ExcluirLote({lote: id}) {
     fora.abertos && plural(fora.abertos, 'processo em andamento', 'processos em andamento'),
     fora.misturas.size && plural(fora.misturas.size, 'mistura', 'misturas'),
     fora.envios && plural(fora.envios, 'envio a cliente', 'envios a clientes'),
-    fora.ordens && plural(fora.ordens, 'ordem de produção', 'ordens de produção')
+    fora.ordens && plural(fora.ordens, 'ordem de produção', 'ordens de produção'),
+    fora.devolucoes && plural(fora.devolucoes, 'devolução de big bag', 'devoluções de big bag')
   ].filter(Boolean);
   const est = balancoDe(id)?.est ?? 0;
   const confirmar = () => {
@@ -198,6 +201,125 @@ function ExcluirLote({lote: id}) {
       <div style={{display: 'flex', gap: 8, marginTop: 22, alignItems: 'center', flexWrap: 'wrap'}}>
         <Button variant="danger-solido" size="lg" icon="trash" label="Excluir lote" onClick={confirmar} />
         <Button variant="ghost" label="Cancelar" onClick={closeDialog} />
+      </div>
+    </>
+  );
+}
+
+// Sending whole bags back to the customer. Several bags of the same lot usually go on one invoice.
+function Devolucao({lote: id, bag}) {
+  const {loteDe, balancoDe, devolucoes, devolver, ativos, notify, closeDialog, perfil} = useStore();
+  const lote = loteDe(id);
+  const b = balancoDe(id);
+  const devolvidos = new Set(devolucoes.filter(d => d.lote === id).map(d => d.bag));
+  const disponiveis = (lote?.bags ?? []).map((peso, i) => ({i, peso})).filter(x => !devolvidos.has(x.i) && podeDevolverBag(lote, b, x.peso));
+  const [marcados, setMarcados] = useState(() => new Set(disponiveis.some(x => x.i === bag) ? [bag] : []));
+  const [form, setForm] = useState({motivo: '', nf: '', data: today(), obs: ''});
+  const [tried, setTried] = useState(false);
+  if (!lote) return null;
+  const motivos = ativos('motivosDevolucao');
+  const nome = nomeVolume(lote.embalagem);
+  const nomes = n => nomeVolume(lote.embalagem, n).toLowerCase();
+  const set = key => e => setForm(f => ({...f, [key]: e.target.value}));
+  const escolhidos = disponiveis.filter(x => marcados.has(x.i));
+  const peso = escolhidos.reduce((s, x) => s + x.peso, 0);
+  const erro = !escolhidos.length
+    ? `Marque pelo menos um ${nome.toLowerCase()}.`
+    : peso > b.steps[0].pend
+      ? `Só ${kg(b.steps[0].pend)} ainda não entraram em produção.`
+      : !form.motivo
+        ? 'Escolha o motivo da devolução.'
+        : null;
+  const alternar = i => setMarcados(m => {
+    const n = new Set(m);
+    if (n.has(i)) n.delete(i);
+    else n.add(i);
+    return n;
+  });
+  const confirmar = () => {
+    setTried(true);
+    if (erro) return;
+    const agora = Date.now();
+    devolver(
+      escolhidos.map((x, k) => ({
+        id: `dev-${agora}-${k}`,
+        lote: id,
+        bag: x.i,
+        peso: x.peso,
+        motivo: form.motivo,
+        nf: form.nf.trim() || null,
+        data: form.data,
+        responsavel: perfil.nome.toUpperCase(),
+        obs: form.obs.trim() || null
+      }))
+    );
+    notify({
+      status: 'Devolução registrada',
+      title: `Lote ${id} · ${escolhidos.length} ${nomes(escolhidos.length)}`,
+      detail: `${kg(peso)} devolvidos · ${title(form.motivo)}`,
+      icon: 'truck'
+    });
+    closeDialog();
+  };
+  return (
+    <>
+      <div style={{display: 'flex', gap: 16, alignItems: 'center'}}>
+        <div className="mat-thumb">
+          <MaterialCode material={materialDe(lote)} tipo={lote.tipo} />
+        </div>
+        <div>
+          <p className="label" style={{margin: 0}}>Devolução ao cliente</p>
+          <div style={{fontSize: 24, fontWeight: 600}}>Lote {id}</div>
+          <div style={{color: 'var(--muted)', fontSize: 14}}>
+            {title(materialDe(lote))} · {title(lote.cliente)}
+          </div>
+        </div>
+      </div>
+      <p className="label" style={{marginTop: 20}}>Quais {nomes(2)} voltam</p>
+      <div className="devolver-bags">
+        {disponiveis.map(x => (
+          <label key={x.i} className={`devolver-bag ${marcados.has(x.i) ? 'on' : ''}`}>
+            <input type="checkbox" checked={marcados.has(x.i)} onChange={() => alternar(x.i)} />
+            <span>
+              {nome} {x.i + 1}
+            </span>
+            <b>{kg(x.peso)}</b>
+          </label>
+        ))}
+      </div>
+      <div className="fields" style={{marginTop: 16}}>
+        <label className="field wide">
+          <span>Motivo</span>
+          <select className="input" value={form.motivo} onChange={set('motivo')} style={tried && !form.motivo ? {borderColor: 'var(--stop)'} : null}>
+            <option value="">{motivos.length ? 'Selecione o motivo' : 'Nenhum motivo cadastrado'}</option>
+            {motivos.map(m => (
+              <option key={m} value={m}>
+                {title(m)}
+              </option>
+            ))}
+          </select>
+          {!motivos.length && <small style={{color: 'var(--stop)'}}>Peça ao gerente para cadastrar os motivos de devolução.</small>}
+        </label>
+        <label className="field">
+          <span>NF de devolução</span>
+          <input className="input" value={form.nf} onChange={set('nf')} placeholder="Opcional" />
+        </label>
+        <label className="field">
+          <span>Data</span>
+          <input className="input" type="date" value={form.data} onChange={set('data')} />
+        </label>
+        <label className="field wide">
+          <span>Observação</span>
+          <input className="input" value={form.obs} onChange={set('obs')} placeholder="Opcional" />
+        </label>
+      </div>
+      <div className="devolver-total">
+        Devolvendo <b>{escolhidos.length} {nomes(escolhidos.length)}</b> · <b>{kg(peso)}</b>
+      </div>
+      <div style={{display: 'flex', gap: 8, marginTop: 18, alignItems: 'center', flexWrap: 'wrap'}}>
+        <Button variant="primary" size="lg" icon="truck" label="Registrar devolução" onClick={confirmar} />
+        <Button variant="ghost" label="Cancelar" onClick={closeDialog} />
+        {tried && erro && <span style={{color: 'var(--stop)', fontSize: 13}}>{erro}</span>}
       </div>
     </>
   );

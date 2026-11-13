@@ -45,7 +45,7 @@ export function etapaDe(ap, rota) {
   return i >= 0 ? i : 0;
 }
 
-export function computeBalances({lotes, apontamentos, misturas, envios, ordens, abertos = []}) {
+export function computeBalances({lotes, apontamentos, misturas, envios, ordens, abertos = [], devolucoes = []}) {
   const map = new Map();
   for (const l of lotes) {
     const entrada = pesado(l);
@@ -69,10 +69,20 @@ export function computeBalances({lotes, apontamentos, misturas, envios, ordens, 
       horas: 0,
       enviado: 0,
       misturado: 0,
+      devolvido: 0,
       apontamentos: [],
       envios: [],
-      misturas: []
+      misturas: [],
+      devolucoes: []
     });
+  }
+  // A whole bag sent back to the customer leaves before the first step: it never gets processed.
+  for (const d of devolucoes) {
+    const b = map.get(d.lote);
+    if (!b) continue;
+    b.steps[0].pend -= d.peso;
+    b.devolvido += d.peso;
+    b.devolucoes.push(d);
   }
   const sorted = [...apontamentos].sort((a, b) => (a.data + (a.inicio ?? '')).localeCompare(b.data + (b.inicio ?? '')));
   for (const ap of sorted) {
@@ -143,6 +153,7 @@ export function computeBalances({lotes, apontamentos, misturas, envios, ordens, 
 }
 
 export function statusFrom(lote, b, ordem) {
+  if (b?.entrada > 0 && b.devolvido >= b.entrada) return 'DEVOLVIDO';
   if (b?.processo) return pausado(b.processo) ? 'PARADO' : 'EM PROCESSO';
   if (b?.rota.length && b.pend > 0) return 'AGUARDANDO INICIO';
   if (b?.est > 0 && !b.pend) return 'A PRONTA ENTREGA';
@@ -163,7 +174,7 @@ export function filaDe({lotes, ordens}, balances) {
     const ordem = ordens.find(o => o.lote === l.lote);
     comLote.add(l.lote);
     const status = statusFrom(l, b, ordem);
-    if (status === 'ENTREGUE' || status === 'HISTORICO') continue;
+    if (status === 'ENTREGUE' || status === 'HISTORICO' || status === 'DEVOLVIDO') continue;
     const setor = b.processo
       ? b.processo.setor
       : b.proxima >= 0
@@ -191,3 +202,6 @@ export function filaDe({lotes, ordens}, balances) {
   }
   return itens;
 }
+
+// A bag can go back while its weight is still waiting for the first step of the route.
+export const podeDevolverBag = (lote, b, peso) => !lote.origem && b != null && b.steps[0].pend >= peso;

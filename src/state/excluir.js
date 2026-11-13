@@ -1,6 +1,6 @@
 // Deleting a lot takes along everything that only exists because of it: the lots split out of it,
 // mixes that used it (and the lot each mix made), its postings, open processes, shipments and orders.
-export function oQueSaiComLote(id, {lotes, misturas, apontamentos, abertos, envios, ordens}) {
+export function oQueSaiComLote(id, {lotes, misturas, apontamentos, abertos, envios, ordens, devolucoes = []}) {
   const saem = new Set([id]);
   const misturasFora = new Set();
   for (let mudou = true; mudou; ) {
@@ -29,7 +29,8 @@ export function oQueSaiComLote(id, {lotes, misturas, apontamentos, abertos, envi
     apontamentos: apontamentos.filter(doLote).length,
     abertos: abertos.filter(doLote).length,
     envios: envios.filter(doLote).length,
-    ordens: ordens.filter(doLote).length
+    ordens: ordens.filter(doLote).length,
+    devolucoes: devolucoes.filter(doLote).length
   };
 }
 
@@ -44,6 +45,7 @@ export function semLote(state, id) {
     abertos: state.abertos.filter(fica),
     envios: state.envios.filter(fica),
     ordens: state.ordens.filter(fica),
+    devolucoes: (state.devolucoes ?? []).filter(fica),
     // The database clears the link on CRM activities by itself; keep the screen in step.
     crm: {...state.crm, atividades: state.crm.atividades.map(a => (a.lote && fora.lotes.has(a.lote) ? {...a, lote: null} : a))}
   };

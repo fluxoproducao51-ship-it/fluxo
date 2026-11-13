@@ -7,6 +7,7 @@ export const STATUS = {
   'A PRONTA ENTREGA': {label: 'Pronto para entrega', short: 'Pronto', color: 'var(--ready)'},
   'EM ESTOQUE': {label: 'Em estoque', short: 'Em estoque', color: 'var(--stock)'},
   ENTREGUE: {label: 'Entregue', short: 'Entregue', color: 'var(--ok)'},
+  DEVOLVIDO: {label: 'Devolvido ao cliente', short: 'Devolvido', color: 'var(--subtle)'},
   HISTORICO: {label: 'Sem status', short: 'Sem status', color: 'var(--subtle)'}
 };
 

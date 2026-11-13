@@ -1222,3 +1222,24 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .hist-tabela tbody tr { cursor: pointer; }
 @media (max-width: 860px) { .hist-maquina { width: 100%; } .hist-agora { margin-left: 0; } }
 .perdas-campos { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; max-width: 720px; }
+
+/* ---------- Returning bags ---------- */
+.lote-volume.devolvido { background: var(--surface); border-style: dashed; }
+.lote-volume.devolvido b { text-decoration: line-through; color: var(--subtle); }
+.bag-motivo { font-size: 11px; color: var(--stop); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bag-link { align-self: flex-start; margin-top: 4px; font-size: 12px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.bag-link:disabled { color: var(--subtle); text-decoration: none; cursor: not-allowed; }
+.bag-acoes { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.bags-devolvidos-resumo { font-size: 12px; color: var(--muted); margin: -2px 0 8px; padding: 6px 8px; border-left: 3px solid var(--stop); background: var(--surface-2); }
+.bags-devolvidos-resumo b { color: var(--fg); font-family: var(--mono); }
+.devolver-bags { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; max-height: 220px; overflow: auto; }
+.devolver-bag { display: grid; grid-template-columns: 18px 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+.devolver-bag b { grid-column: 2; font-family: var(--mono); font-size: 14px; }
+.devolver-bag.on { border-color: var(--accent); background: var(--accent-soft); }
+.devolver-total { margin-top: 14px; font-size: 14px; color: var(--muted); }
+.devolver-total b { color: var(--fg); }
+
+/* ---------- Return leg on the lot map ---------- */
+.no-devolucao { width: 220px; border-top-color: var(--stop); cursor: default; background: color-mix(in srgb, var(--stop) 4%, white); }
+.react-flow__edge-path.aresta.devolucao { stroke: var(--stop); stroke-width: 2; stroke-dasharray: 6 4; }
+.aresta-peso.devolucao { border-color: var(--stop); color: var(--stop); }

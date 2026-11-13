@@ -67,7 +67,7 @@ function MonthBars({months, peak}) {
 }
 
 export function Relatorios() {
-  const {lotes, apontamentos, abrirLote} = useStore();
+  const {lotes, apontamentos, devolucoes, abrirLote} = useStore();
   const r = useMemo(() => {
     const now = new Date();
     const months = Array.from({length: 12}, (_, i) => {
@@ -141,6 +141,23 @@ export function Relatorios() {
       if (q > classificado) perdas[SEM_CATEGORIA] = (perdas[SEM_CATEGORIA] ?? 0) + q - classificado;
     }
 
+    // Whole bags sent back to the customer in the period.
+    const porLote = new Map(lotes.map(l => [l.lote, l]));
+    const devs = devolucoes.filter(d => noPeriodo(d.data)).sort((a, b) => b.data.localeCompare(a.data));
+    const devCli = {};
+    const devMot = {};
+    for (const d of devs) {
+      const c = porLote.get(d.lote)?.cliente ?? 'SEM CLIENTE';
+      devCli[c] = (devCli[c] ?? {kg: 0, bags: 0});
+      devCli[c].kg += d.peso;
+      devCli[c].bags += 1;
+      const m = d.motivo ?? 'SEM MOTIVO';
+      devMot[m] = (devMot[m] ?? {kg: 0, bags: 0});
+      devMot[m].kg += d.peso;
+      devMot[m].bags += 1;
+    }
+    const ordena = obj => Object.entries(obj).map(([nome, v]) => ({nome, ...v})).sort((a, b) => b.kg - a.kg);
+
     const ult3 = months.slice(-3).reduce((s, m) => s + m.kg, 0) / 3;
     const ant3 = months.slice(-6, -3).reduce((s, m) => s + m.kg, 0) / 3;
     return {
@@ -170,10 +187,19 @@ export function Relatorios() {
           color: tipo === SEM_CATEGORIA ? 'var(--subtle)' : CORES_PERDA[i % CORES_PERDA.length]
         })),
       perdaTotal: Object.values(perdas).reduce((s, v) => s + v, 0),
+      devolucoes: {
+        lista: devs.slice(0, 10),
+        total: devs.length,
+        kg: devs.reduce((s, d) => s + d.peso, 0),
+        lotes: new Set(devs.map(d => d.lote)).size,
+        clientes: ordena(devCli),
+        motivos: ordena(devMot),
+        cliente: d => porLote.get(d.lote)?.cliente
+      },
       usado,
       rendimento: usado ? obtido / usado : null
     };
-  }, [lotes, apontamentos]);
+  }, [lotes, apontamentos, devolucoes]);
   const peak = r.months.reduce((best, m, i) => (m.kg > r.months[best].kg ? i : best), 0);
   const pico = r.months[peak];
 
@@ -304,6 +330,62 @@ export function Relatorios() {
         )}
       </section>
 
+      <section className="panel">
+        <div className="section-head">
+          <h2 className="section-title">Devoluções ao cliente</h2>
+          <span className="section-note">
+            {r.devolucoes.total} {r.devolucoes.total === 1 ? 'volume devolvido' : 'volumes devolvidos'} · {kg(r.devolucoes.kg)}
+            {r.all ? ` · ${pct(r.devolucoes.kg / r.all).replace('+', '')} do recebido` : ''}
+          </span>
+        </div>
+        {r.devolucoes.total ? (
+          <div className="grid-2 even">
+            <div>
+              <p className="label">Por cliente</p>
+              <div className="rtable">
+                {r.devolucoes.clientes.map(c => (
+                  <div key={c.nome} className="rrow div-lote">
+                    <span className="ell">{title(c.nome)}</span>
+                    <span className="n hide-sm">{c.bags} {c.bags === 1 ? 'volume' : 'volumes'}</span>
+                    <span className="n">{kg(c.kg)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="label" style={{marginTop: 18}}>Por motivo</p>
+              <div className="rtable">
+                {r.devolucoes.motivos.map(m => (
+                  <div key={m.nome} className="rrow div-lote">
+                    <span className="ell">{title(m.nome)}</span>
+                    <span className="n hide-sm">{m.bags} {m.bags === 1 ? 'volume' : 'volumes'}</span>
+                    <span className="n">{kg(m.kg)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="label">Últimas devoluções</p>
+              <div className="rtable">
+                {r.devolucoes.lista.map(d => (
+                  <button key={d.id} type="button" className="rrow div-lote" onClick={() => abrirLote(d.lote)}>
+                    <span className="ell">
+                      Lote {d.lote} · bag {d.bag + 1}
+                      <small>
+                        {' '}
+                        · {title(r.devolucoes.cliente(d))} · {date(d.data)}
+                        {d.motivo ? ` · ${title(d.motivo)}` : ''}
+                      </small>
+                    </span>
+                    <span className="n hide-sm">{d.nf ? `NF ${d.nf}` : 'Sem NF'}</span>
+                    <span className="n">{kg(d.peso)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="empty">Nenhuma devolução nos últimos 12 meses.</div>
+        )}
+      </section>
       <section className="panel">
         <div className="section-head">
           <h2 className="section-title">Rendimento da produção</h2>

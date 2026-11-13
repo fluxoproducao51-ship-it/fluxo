@@ -2,7 +2,7 @@
 // to right (entry, route steps, stock, shipped). Separations and mixes link the lanes, so the
 // material can be followed from its origin to its last destination.
 
-import {materialDe, pesado, title} from './data.js';
+import {materialDe, nomeVolume, pesado, title} from './data.js';
 import {obtidoDe, horas, pausado, quebraDe} from './balance.js';
 import {etapasTravadas} from './rotas.js';
 
@@ -168,8 +168,9 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
     const col = colunas.get(l.lote);
     const y = lane * LANE;
     yDe.set(l.lote, y);
-    // A closed lot keeps the lane below it for its children's summary.
-    lane += ocultosDe(l).length ? 2 : 1;
+    // Returned bags and a closed lot's children summary sit in the lane below.
+    const devolve = b.devolvido > 0 && !cortes.has(l.lote);
+    lane += ocultosDe(l).length || devolve ? 2 : 1;
     const rota = passos(l);
     const travadas = eFoco ? etapasTravadas(b) : 0;
     const {lista} = etapasDe(rota, b, abertos.filter(p => p.lote === l.lote));
@@ -180,8 +181,20 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
       type: 'entrada',
       position: {x: col * COL, y},
       connectable: emEdicao,
-      data: {lote: l.lote, foco: eFoco, cliente: l.cliente, material: materialDe(l), peso: pesado(l), data: l.data, nf: l.nf, origem: l.origem?.tipo, pai: l.origem?.pai, emEdicao}
+      data: {lote: l.lote, foco: eFoco, cliente: l.cliente, material: materialDe(l), peso: pesado(l), devolvido: b.devolvido, data: l.data, nf: l.nf, origem: l.origem?.tipo, pai: l.origem?.pai, emEdicao}
     });
+    // Bags sent back to the customer: one more leg leaving the entry.
+    if (devolve) {
+      const id = `${l.lote}:devolucao`;
+      nodes.push({
+        id,
+        type: 'devolucao',
+        position: {x: col * COL, y: y + LANE},
+        connectable: false,
+        data: {lote: l.lote, foco: eFoco, peso: b.devolvido, entrada: b.entrada, devolucoes: b.devolucoes, nome: nomeVolume(l.embalagem, b.devolucoes.length).toLowerCase()}
+      });
+      edge(noEntrada(l.lote), id, {sourceHandle: 'baixo', targetHandle: 'topo', selectable: false, data: {estado: 'devolucao', peso: b.devolvido, foco: eFoco}});
+    }
 
     let anterior = noEntrada(l.lote);
     let anteriorEstado = 'feita';

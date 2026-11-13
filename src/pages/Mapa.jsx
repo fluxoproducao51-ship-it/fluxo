@@ -13,6 +13,7 @@ import {pode} from '../state/perfis.js';
 import {Button} from '../ui/Button.jsx';
 import {Icon} from '../ui/Icon.jsx';
 import {Status} from '../ui/Status.jsx';
+import {BagsDoLote} from '../ui/BagsDoLote.jsx';
 
 const Edicao = createContext(null);
 // The side column shows either a clicked step or the lot's own data.
@@ -74,7 +75,13 @@ function NoEntrada({data}) {
       <div className="no-sub">{title(data.material)}</div>
       <div className="no-sub">{title(data.cliente)}</div>
       {data.pai && <div className="no-sub">Separado do lote <b className="mono">{data.pai}</b></div>}
-      <Linha label="Peso">{kg(data.peso)}</Linha>
+      <Linha label={data.devolvido ? 'Entrou' : 'Peso'}>{kg(data.peso)}</Linha>
+      {data.devolvido > 0 && (
+        <>
+          <Linha label="Devolvido" tone="stop">−{kg(data.devolvido)}</Linha>
+          <Linha label="Segue">{kg(data.peso - data.devolvido)}</Linha>
+        </>
+      )}
       {!data.foco && <div className="no-dica">Clique para abrir este lote</div>}
       <Saida emEdicao={data.emEdicao} />
     </div>
@@ -191,6 +198,25 @@ function NoFilhos({data}) {
   );
 }
 
+function NoDevolucao({data}) {
+  const motivos = [...new Set(data.devolucoes.map(d => title(d.motivo)).filter(Boolean))];
+  const nfs = [...new Set(data.devolucoes.map(d => d.nf).filter(Boolean))];
+  return (
+    <div className={`no no-devolucao ${data.foco ? 'foco' : 'outro'}`}>
+      <Handle id="topo" type="target" position={Position.Top} className="porta oculta" isConnectable={false} />
+      <div className="no-topo">
+        <Icon name="truck" size={14} style={{transform: 'scaleX(-1)'}} /> Devolução
+        <span>{data.devolucoes.length} {data.nome}</span>
+      </div>
+      <div className="no-nome">Devolvido ao cliente</div>
+      <Linha label="Peso" tone="stop">{kg(data.peso)}</Linha>
+      <Linha label="Do que entrou">{pct(data.peso / data.entrada).replace('+', '')}</Linha>
+      {motivos.length > 0 && <div className="no-sub">{motivos.join(', ')}</div>}
+      {nfs.length > 0 && <div className="no-sub">NF {nfs.join(', ')}</div>}
+    </div>
+  );
+}
+
 function ArestaFluxo({id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data}) {
   const ed = useContext(Edicao);
   const [path, x, y] = getBezierPath({sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition});
@@ -211,6 +237,11 @@ function ArestaFluxo({id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
             <Icon name="plus" size={12} stroke={2.6} />
           </button>
         )}
+        {data.estado === 'devolucao' && (
+          <span className="aresta-peso devolucao" style={{transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`}}>
+            −{kg(data.peso)}
+          </span>
+        )}
         {data.estado === 'ramo' && !data.semRotulo && (
           <span className={`aresta-peso ${data.fluxo ? 'fluxo' : ''}`} style={{transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`}}>
             {data.peso ? kg(data.peso) : data.tipoRamo === 'mistura' ? 'mistura' : 'separação'}
@@ -221,7 +252,7 @@ function ArestaFluxo({id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
   );
 }
 
-const nodeTypes = {entrada: NoEntrada, etapa: NoEtapa, estoque: NoEstoque, enviado: NoEnviado, filhos: NoFilhos};
+const nodeTypes = {entrada: NoEntrada, etapa: NoEtapa, estoque: NoEstoque, enviado: NoEnviado, filhos: NoFilhos, devolucao: NoDevolucao};
 const edgeTypes = {fluxo: ArestaFluxo};
 
 // One mark per route step, then the stock: the lot's position at a glance.
@@ -397,6 +428,7 @@ function DadosDoLote({lote, b, onFechar}) {
   const diff = divergencia(lote);
   const fatos = [
     ['Peso de entrada', kg(b.entrada)],
+    ...(b.devolvido > 0 ? [['Devolvido ao cliente', kg(b.devolvido)]] : []),
     ['Pendente', kg(b.pend)],
     ['Em estoque', kg(b.est)],
     ['Enviado', kg(b.enviado)],
@@ -433,25 +465,7 @@ function DadosDoLote({lote, b, onFechar}) {
           <p className="label mapa-subtitulo">
             {lote.bags.length} {nomeVolume(lote.embalagem, lote.bags.length).toLowerCase()} pesados
           </p>
-          <div className="lote-volumes-resumo">
-            <span>Total <b>{kg(lote.bags.reduce((s, p) => s + p, 0))}</b></span>
-            <span>Média <b>{kg(Math.round(lote.bags.reduce((s, p) => s + p, 0) / lote.bags.length))}</b></span>
-            {lote.bags.length > 1 && (
-              <span>
-                Menor <b>{kg(Math.min(...lote.bags))}</b> · Maior <b>{kg(Math.max(...lote.bags))}</b>
-              </span>
-            )}
-          </div>
-          <div className="lote-volumes">
-            {lote.bags.map((peso, i) => (
-              <div key={i} className="lote-volume">
-                <span>
-                  {nomeVolume(lote.embalagem)} {i + 1}
-                </span>
-                <b>{kg(peso)}</b>
-              </div>
-            ))}
-          </div>
+          <BagsDoLote lote={lote} />
         </>
       )}
       {b.envios.length > 0 && (
