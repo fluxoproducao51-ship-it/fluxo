@@ -63,7 +63,7 @@ function DevolucaoDeBags({lotes}) {
     <section className="panel">
       <h2 className="section-title">Devolução de {nomeVolume('BIG BAG', 2).toLowerCase()}</h2>
       <p className="page-sub" style={{fontSize: 14}}>
-        Escolha o lote e devolva ao cliente os volumes que não serão processados. Só dá para devolver antes de o lote entrar em produção.
+        Só dá para devolver antes de o lote entrar em produção.
       </p>
       <label className="field" style={{maxWidth: 520, marginTop: 12}}>
         <span>Lote</span>
