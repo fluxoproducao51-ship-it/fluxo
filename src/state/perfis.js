@@ -5,14 +5,14 @@ export const PERFIS = {
     cargo: 'Gerente',
     resumo: 'Vê tudo',
     inicio: 'painel',
-    paginas: ['painel', 'pcp', 'mapa', 'lotes', 'relatorios', 'historicomaquinas', 'recebimento', 'producao', 'apontar', 'andamento', 'misturas', 'estoque', 'maquinas', 'cadastros', 'usuarios', 'crm', 'crmempresas', 'crmatividades', 'crmhistorico', 'crmindicadores'],
+    paginas: ['painel', 'pcp', 'mapa', 'lotes', 'relatorios', 'historicomaquinas', 'historicobags', 'recebimento', 'producao', 'apontar', 'andamento', 'misturas', 'estoque', 'maquinas', 'cadastros', 'usuarios', 'crm', 'crmempresas', 'crmatividades', 'crmhistorico', 'crmindicadores'],
     acoes: ['editarRota', 'apontar', 'enviar', 'excluirLote', 'devolver', 'verMapa', 'verFicha']
   },
   pcp: {
     cargo: 'Planejamento e controle',
     resumo: 'Central do PCP, mapa, estoque, rotas e máquinas',
     inicio: 'pcp',
-    paginas: ['pcp', 'mapa', 'lotes', 'relatorios', 'historicomaquinas', 'producao', 'estoque', 'rotas', 'materiais', 'maquinas'],
+    paginas: ['pcp', 'mapa', 'lotes', 'relatorios', 'historicomaquinas', 'historicobags', 'producao', 'estoque', 'rotas', 'materiais', 'maquinas'],
     acoes: ['editarRota', 'enviar', 'excluirLote', 'devolver', 'verMapa', 'verFicha']
   },
   logistica: {

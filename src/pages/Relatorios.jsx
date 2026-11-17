@@ -122,6 +122,8 @@ export function Relatorios() {
     const perdas = {};
     let usado = 0;
     let obtido = 0;
+    // A process with bags of several lots left a posting per lot: its machine hours count once.
+    const horasVistas = new Set();
     for (const ap of apontamentos) {
       if (!noPeriodo(ap.data)) continue;
       const e = (etapas[ap.setor] ??= {setor: ap.setor, n: 0, usado: 0, obtido: 0, quebra: 0, horas: 0});
@@ -130,7 +132,8 @@ export function Relatorios() {
       e.usado += ap.usado;
       e.obtido += obtidoDe(ap);
       e.quebra += q;
-      e.horas += horas(ap);
+      if (!ap.processo || !horasVistas.has(ap.processo)) e.horas += horas(ap);
+      if (ap.processo) horasVistas.add(ap.processo);
       usado += ap.usado;
       obtido += obtidoDe(ap);
       let classificado = 0;

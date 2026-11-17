@@ -54,13 +54,25 @@ function reducer(state, action) {
       return mapAberto(state, action.id, p => ({...p, pausas: [...p.pausas, {inicio: now(), fim: null, motivo: action.motivo, obs: action.obs}]}));
     case 'retomar':
       return mapAberto(state, action.id, p => ({...p, pausas: p.pausas.map(x => (x.fim ? x : {...x, fim: now()}))}));
+    case 'adicionarBags':
+      // A bag put in while the machine runs: the process keeps who added it and when.
+      return mapAberto(state, action.id, p => {
+        const bags = [...(p.bags ?? []), ...action.bags];
+        return {...p, bags, usado: bags.reduce((s, e) => s + e.peso, 0)};
+      });
+    case 'retirarBag':
+      return mapAberto(state, action.id, p => {
+        const bags = (p.bags ?? []).filter(e => e.bag !== action.bag);
+        const lote = bags.some(e => e.lote === p.lote) ? p.lote : bags[0]?.lote ?? p.lote;
+        return {...p, bags, lote, usado: bags.reduce((s, e) => s + e.peso, 0)};
+      });
     case 'cancelar':
       return {...state, abertos: state.abertos.filter(p => p.id !== action.id)};
     case 'finalizar':
       return {
         ...state,
         abertos: state.abertos.filter(p => p.id !== action.id),
-        apontamentos: [...state.apontamentos, action.ap],
+        apontamentos: [...state.apontamentos, ...(action.aps ?? [action.ap])],
         lotes: [...state.lotes, ...action.filhos],
         cadastros: remember(state.cadastros, {materiais: action.filhos.flatMap(f => f.materiais)})
       };
@@ -253,6 +265,8 @@ export function StoreProvider({children, perfil, inicial}) {
       pausar: (id, motivo, obs) => dispatch({type: 'pausar', id, motivo, obs}),
       retomar: id => dispatch({type: 'retomar', id}),
       cancelar: id => dispatch({type: 'cancelar', id}),
+      adicionarBags: (id, bags) => dispatch({type: 'adicionarBags', id, bags}),
+      retirarBag: (id, bag) => dispatch({type: 'retirarBag', id, bag}),
       finalizar: payload => dispatch({type: 'finalizar', ...payload}),
       mudarRota: (lote, rota) => dispatch({type: 'rota', lote, rota, por: state.perfil.nome}),
       misturar: payload => dispatch({type: 'misturar', ...payload}),

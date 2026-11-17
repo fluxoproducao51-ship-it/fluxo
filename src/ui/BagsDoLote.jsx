@@ -1,9 +1,11 @@
 import {useState} from 'react';
 import {useStore} from '../state/store.jsx';
-import {date, kg, nomeVolume, title} from '../state/data.js';
+import {bagsMisturados, date, kg, materialDoBag, nomeVolume, title} from '../state/data.js';
 import {podeDevolverBag} from '../state/balance.js';
 import {pode} from '../state/perfis.js';
 import {Button} from './Button.jsx';
+import {Icon} from './Icon.jsx';
+import {situacaoDoBag} from './HistoricoDoBag.jsx';
 
 // The weighed bags of a received lot, each with its weight; whole bags can go back to the customer
 // while the lot hasn't started its first step, and a return made by mistake can be undone.
@@ -19,6 +21,7 @@ export function BagsDoLote({lote}) {
   const pesoDevolvido = [...devolvidos.values()].reduce((s, d) => s + d.peso, 0);
   const total = lote.bags.reduce((s, p) => s + p, 0);
   const restantes = lote.bags.length - devolvidos.size;
+  const misturado = bagsMisturados(lote);
   return (
     <>
       <div className="lote-volumes-resumo">
@@ -48,13 +51,17 @@ export function BagsDoLote({lote}) {
       <div className="lote-volumes">
         {lote.bags.map((peso, i) => {
           const d = devolvidos.get(i);
-          const livre = podeDevolverBag(lote, b, peso);
+          const estado = b.porBag ? b.bags.find(x => x.i === i) : null;
+          const livre = podeDevolverBag(lote, b, peso, i);
           return (
-            <div key={i} className={`lote-volume ${d ? 'devolvido' : ''}`}>
-              <span>
+            <div key={i} className={`lote-volume ${d ? 'devolvido' : ''} ${estado ? `bag-${estado.status}` : ''}`}>
+              <button type="button" className="bag-abrir" onClick={() => openDialog({tipo: 'bag', lote: lote.lote, bag: i})} title="Ver histórico do bag">
                 {nome} {i + 1}
-              </span>
-              <b>{kg(peso)}</b>
+                <Icon name="chevronRight" size={12} />
+              </button>
+              <b>{kg(estado && estado.status !== 'devolvido' ? estado.peso : peso)}</b>
+              {estado && !d && <small className="bag-situacao">{situacaoDoBag(estado)}</small>}
+              <small className={`bag-material ${misturado ? 'destaque' : ''}`}>{title(materialDoBag(lote, i)) || '—'}</small>
               {d ? (
                 <>
                   <small className="bag-motivo" title={[d.motivo && title(d.motivo), d.nf && `NF ${d.nf}`, d.obs].filter(Boolean).join(' · ')}>
@@ -99,7 +106,7 @@ export function BagsDoLote({lote}) {
           );
         })}
       </div>
-      {devolve && restantes > 0 && !lote.bags.some((p, i) => !devolvidos.has(i) && podeDevolverBag(lote, b, p)) && (
+      {devolve && restantes > 0 && !lote.bags.some((p, i) => !devolvidos.has(i) && podeDevolverBag(lote, b, p, i)) && (
         <p className="wiz-note">O material já entrou em produção: não dá mais para devolver {nomes(2)} deste lote.</p>
       )}
     </>

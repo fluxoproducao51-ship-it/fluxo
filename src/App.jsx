@@ -7,6 +7,7 @@ import {Painel} from './pages/Painel.jsx';
 import {Pcp} from './pages/Pcp.jsx';
 import {Maquinas} from './pages/Maquinas.jsx';
 import {HistoricoMaquinas} from './pages/HistoricoMaquinas.jsx';
+import {HistoricoBags} from './pages/HistoricoBags.jsx';
 import {Mapa} from './pages/Mapa.jsx';
 import {Recebimento} from './pages/Recebimento.jsx';
 import {Producao} from './pages/Producao.jsx';
@@ -33,6 +34,7 @@ const SCREENS = {
   rotas: RotasPagina,
   maquinas: Maquinas,
   historicomaquinas: HistoricoMaquinas,
+  historicobags: HistoricoBags,
   materiais: MateriaisPagina,
   mapa: Mapa,
   recebimento: Recebimento,

@@ -139,7 +139,7 @@ function FilaPorMaquina({onGo}) {
       const b = balances.get(l.lote);
       if (!b?.aberto) continue;
       b.steps.forEach(s => {
-        if (s.setor && s.pend > 0) de(s.setor).fila.push({lote: l.lote, peso: s.pend});
+        if (s.setor && s.pend > 0) de(s.setor).fila.push({lote: l.lote, peso: s.pend, bags: s.bags?.length});
       });
     }
     // Orders from the old spreadsheet board that never got a lot of their own.
@@ -182,7 +182,9 @@ function FilaPorMaquina({onGo}) {
                   <td>
                     {m.rodando.map(p => (
                       <button key={p.id} type="button" className="maq-rodando" onClick={() => onGo('mapa', {lote: p.lote})}>
-                        <b className="mono">{p.lote}</b> {title(p.operador)} · {horasLiquidas(p, agora).toLocaleString('pt-BR', {maximumFractionDigits: 1})} h
+                        <b className="mono">{p.bags ? [...new Set(p.bags.map(e => e.lote))].join(', ') : p.lote}</b>
+                        {p.bags ? ` · ${p.bags.length} ${p.bags.length === 1 ? 'bag' : 'bags'}` : ''} {title(p.operador)} ·{' '}
+                        {horasLiquidas(p, agora).toLocaleString('pt-BR', {maximumFractionDigits: 1})} h
                       </button>
                     ))}
                     {!m.rodando.length && <span className="maq-livre">—</span>}
@@ -194,6 +196,7 @@ function FilaPorMaquina({onGo}) {
                       ) : (
                         <button key={f.lote} type="button" className="lote-chip" title={kg(f.peso)} onClick={() => onGo('mapa', {lote: f.lote})}>
                           {f.lote}
+                          {f.bags ? ` · ${f.bags} ${f.bags === 1 ? 'bag' : 'bags'}` : ''}
                         </button>
                       )
                     )}

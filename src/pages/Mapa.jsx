@@ -118,6 +118,13 @@ function NoEtapa({data, selected}) {
       <div className="no-nome">{data.semRota ? 'Sem rota definida' : title(data.setor)}</div>
       {data.maquina > 0 && <Linha label="Na máquina" tone={data.estado === 'parado' ? 'stop' : 'run'}>{kg(data.maquina)}</Linha>}
       {data.fila > 0 && <Linha label="Aguardando" tone="ready">{kg(data.fila)}</Linha>}
+      {(data.bagsFila > 0 || data.bagsMaquina > 0 || data.bagsFeitos > 0) && (
+        <div className="no-bags">
+          {data.bagsMaquina > 0 && <span className="na-maquina">{data.bagsMaquina} na máquina</span>}
+          {data.bagsFila > 0 && <span className="na-fila">{data.bagsFila} aguardando</span>}
+          {data.bagsFeitos > 0 && <span>{data.bagsFeitos} processados</span>}
+        </div>
+      )}
       {data.inicio && (
         <>
           <Linha label="Operador">{title(data.operador)}</Linha>
@@ -491,6 +498,15 @@ function Apontamento({a}) {
       ))}
       {a.continua && <span>Continuou no lote: {kg(a.continua.peso)}</span>}
       {a.voltouParaFila > 0 && <span>Voltou para a fila: {kg(a.voltouParaFila)}</span>}
+      {a.bags?.length > 0 && (
+        <span className="ap-bags">
+          {a.bags.map(x => (
+            <em key={x.bag} title={`Entrou ${new Date(x.entrada).toTimeString().slice(0, 5)} · saiu ${new Date(x.saida).toTimeString().slice(0, 5)} · ${title(x.operador)}`}>
+              Bag {x.n} {kg(x.pesoEntrada)}→{x.pesoSaida != null ? kg(x.pesoSaida) : 'sep.'}
+            </em>
+          ))}
+        </span>
+      )}
       {a.pausas?.length > 0 && <span>Paradas: {[...new Set(a.pausas.map(x => title(x.motivo)))].join(', ')}</span>}
       {a.obs && <small>“{a.obs}”</small>}
     </div>
@@ -503,6 +519,8 @@ function Detalhe({no, onFechar, onIniciar}) {
     <div className="mapa-detalhe">
       <Cabecalho titulo={data.semRota ? 'Sem rota definida' : title(data.setor)} onFechar={onFechar} />
       {onIniciar && data.fila > 0 && !data.semRota && <Button variant="primary" size="sm" icon="play" label="Iniciar processo" onClick={onIniciar} />}
+      {data.listaMaquina?.length > 0 && <ListaDeBags titulo="Na máquina agora" bags={data.listaMaquina} lote={data.lote} />}
+      {data.listaFila?.length > 0 && <ListaDeBags titulo="Aguardando esta máquina" bags={data.listaFila} lote={data.lote} />}
       {data.apontamentos.length ? (
         <div className="mapa-aps">
           {data.apontamentos.map(a => (
@@ -516,12 +534,45 @@ function Detalhe({no, onFechar, onIniciar}) {
   );
 }
 
+// Bags at one step of the map; each opens its own history.
+function ListaDeBags({titulo, bags, lote}) {
+  const {openDialog} = useStore();
+  return (
+    <>
+      <p className="label mapa-subtitulo">
+        {titulo} · {bags.length} · {kg(bags.reduce((s, x) => s + x.peso, 0))}
+      </p>
+      <div className="mapa-bags">
+        {bags.map(x => (
+          <button key={x.id ?? x.bag} type="button" className="mapa-bag" onClick={() => openDialog({tipo: 'bag', lote: x.lote ?? lote, bag: x.i})}>
+            <b>Bag {x.n}</b>
+            <span>{kg(x.peso)}</span>
+            {x.entrada && <small>desde {new Date(x.entrada).toTimeString().slice(0, 5)}</small>}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function DadosDoLote({lote, b, onFechar}) {
   const {openDialog, perfil} = useStore();
   const diff = divergencia(lote);
   const fatos = [
     ['Peso de entrada', kg(b.entrada)],
     ...(b.devolvido > 0 ? [['Devolvido ao cliente', kg(b.devolvido)]] : []),
+    ...(b.porBag
+      ? [
+          [
+            'Bags agora',
+            ['maquina', 'fila', 'estoque']
+              .map(st => [st, b.bags.filter(x => x.status === st).length])
+              .filter(([, q]) => q)
+              .map(([st, q]) => `${q} ${st === 'maquina' ? 'em máquina' : st === 'fila' ? 'na fila' : 'em estoque'}`)
+              .join(' · ') || '—'
+          ]
+        ]
+      : []),
     ['Pendente', kg(b.pend)],
     ['Em estoque', kg(b.est)],
     ['Enviado', kg(b.enviado)],
@@ -642,7 +693,8 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
   const mudou = rascunho && JSON.stringify(rascunho) !== JSON.stringify(rotaSalva);
   const travadas = etapasTravadas(b);
   // Only a lot that still has material to process can change route.
-  const editavel = pode(perfil, 'editarRota') && b.pend + b.maquina > 0;
+  // Bags of other materials follow their own routes: this lot's route can't be redrawn as one line.
+  const editavel = pode(perfil, 'editarRota') && b.pend + b.maquina > 0 && !b.rotasMistas;
 
   const mapa = useMemo(
     () => construirMapa({foco, rotaFoco: rota, lotes, balances, misturas, abertos, editavel, expandidos}),

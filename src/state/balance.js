@@ -5,6 +5,7 @@
 // (old spreadsheet history) keep a single bucket.
 
 import {pesado} from './data.js';
+import {estadoDosBags, processoDoLote, rotaUnida} from './bags.js';
 
 const minutes = hhmm => {
   const [h, m] = hhmm.split(':').map(Number);
@@ -47,17 +48,39 @@ export function etapaDe(ap, rota) {
 
 export function computeBalances({lotes, apontamentos, misturas, envios, ordens, abertos = [], devolucoes = []}) {
   const map = new Map();
+  // Lots worked bag by bag: the steps are filled from where each bag is, not from weight moving
+  // between buckets.
+  const estados = estadoDosBags({lotes, apontamentos, abertos, devolucoes});
+  const bagsPorLote = new Map();
+  for (const e of estados.values()) bagsPorLote.set(e.lote, [...(bagsPorLote.get(e.lote) ?? []), e]);
   for (const l of lotes) {
     const entrada = pesado(l);
-    const rota = l.rota ?? [];
+    const bags = bagsPorLote.get(l.lote);
+    const rota = bags ? rotaUnida(l.rota ?? [], bags.map(x => x.rota)) : l.rota ?? [];
     const toStock = l.inicial === 'estoque';
-    const steps = (rota.length ? rota : [null]).map(setor => ({setor, pend: 0}));
-    if (!toStock) steps[0].pend = entrada;
+    const steps = (rota.length ? rota : [null]).map(setor => ({setor, pend: 0, bags: []}));
+    let est = toStock ? entrada : 0;
+    if (bags) {
+      est = 0;
+      for (const x of bags) {
+        if (x.status === 'fila') {
+          const i = x.setor == null ? 0 : rota.indexOf(x.setor);
+          const step = steps[i < 0 ? 0 : i];
+          step.pend += x.peso;
+          step.bags.push(x);
+        } else if (x.status === 'estoque') est += x.peso;
+      }
+    } else if (!toStock) steps[0].pend = entrada;
     map.set(l.lote, {
+      porBag: Boolean(bags),
+      bags: bags ?? [],
+      // Bags of other materials taking other machines: the lot's route alone doesn't describe them.
+      rotasMistas: Boolean(bags?.some(x => JSON.stringify(x.rota) !== JSON.stringify(l.rota ?? []))),
+      processos: [],
       entrada,
       rota,
       steps,
-      est: toStock ? entrada : 0,
+      est,
       maquina: 0,
       processo: null,
       usado: 0,
@@ -80,7 +103,7 @@ export function computeBalances({lotes, apontamentos, misturas, envios, ordens, 
   for (const d of devolucoes) {
     const b = map.get(d.lote);
     if (!b) continue;
-    b.steps[0].pend -= d.peso;
+    if (!b.porBag) b.steps[0].pend -= d.peso;
     b.devolvido += d.peso;
     b.devolucoes.push(d);
   }
@@ -88,8 +111,18 @@ export function computeBalances({lotes, apontamentos, misturas, envios, ordens, 
   for (const ap of sorted) {
     const b = map.get(ap.lote);
     if (!b) continue;
-    const i = Math.min(etapaDe(ap, b.rota), b.steps.length - 1);
     const obtido = obtidoDe(ap);
+    if (b.porBag || ap.bags) {
+      // Bag postings only add up; where the material went is already in each bag's state.
+      const i = Math.max(0, b.rota.indexOf(ap.setor));
+      b.usado += ap.usado;
+      b.obtido += obtido;
+      b.quebra += quebraDe(ap);
+      b.horas += horas(ap);
+      b.apontamentos.push({...ap, etapaIdx: i});
+      continue;
+    }
+    const i = Math.min(etapaDe(ap, b.rota), b.steps.length - 1);
     b.steps[i].pend -= ap.usado;
     const segue = ap.separacao?.length ? ap.continua?.peso ?? 0 : obtido;
     if (ap.destino === 'estoque') b.est += segue;
@@ -107,10 +140,23 @@ export function computeBalances({lotes, apontamentos, misturas, envios, ordens, 
     b.apontamentos.push({...ap, etapaIdx: i});
   }
   for (const proc of abertos) {
+    if (proc.bags) {
+      // One process may hold bags of several lots: each lot sees its own part of it.
+      for (const lote of new Set(proc.bags.map(e => e.lote))) {
+        const b = map.get(lote);
+        if (!b) continue;
+        const meu = processoDoLote(proc, lote, b.rota);
+        b.maquina += meu.usado;
+        b.processos.push(meu);
+        b.processo ??= meu;
+      }
+      continue;
+    }
     const b = map.get(proc.lote);
     if (!b) continue;
     b.steps[Math.min(proc.etapa, b.steps.length - 1)].pend -= proc.usado;
     b.maquina += proc.usado;
+    b.processos.push(proc);
     b.processo = proc;
   }
   for (const mix of misturas) {
@@ -203,5 +249,13 @@ export function filaDe({lotes, ordens}, balances) {
   return itens;
 }
 
-// A bag can go back while its weight is still waiting for the first step of the route.
-export const podeDevolverBag = (lote, b, peso) => !lote.origem && b != null && b.steps[0].pend >= peso;
+// A bag can go back while it hasn't been in any machine yet. In the old lot model, while its
+// weight is still waiting for the first step of the route.
+export function podeDevolverBag(lote, b, peso, i) {
+  if (lote.origem || b == null) return false;
+  if (b.porBag) {
+    const bag = b.bags.find(x => x.i === i);
+    return Boolean(bag && bag.status === 'fila' && !bag.hist.length);
+  }
+  return b.steps[0].pend >= peso;
+}

@@ -5,6 +5,7 @@
 import {materialDe, nomeVolume, pesado, title} from './data.js';
 import {obtidoDe, horas, pausado, quebraDe} from './balance.js';
 import {etapasTravadas} from './rotas.js';
+import {abertosDoLote} from './bags.js';
 
 const COL = 276;
 const LANE = 250;
@@ -71,15 +72,15 @@ function visiveis(foco, expandidos, ctx) {
 }
 
 // What is happening at each route step of a lot.
-export function etapasDe(rota, b, abertosDoLote) {
-  const emAndamento = abertosDoLote.map(p => p.etapa);
+export function etapasDe(rota, b, procsDoLote) {
+  const emAndamento = procsDoLote.map(p => p.etapa);
   const fila = i => b.steps[i]?.pend ?? 0;
   let atual = emAndamento.length ? Math.min(...emAndamento) : rota.findIndex((_, i) => fila(i) > 0);
   if (atual < 0) atual = -1;
   let proxima = -1;
   const lista = rota.map((setor, i) => {
     const aps = b.apontamentos.filter(a => a.etapaIdx === i);
-    const procs = abertosDoLote.filter(p => p.etapa === i);
+    const procs = procsDoLote.filter(p => p.etapa === i);
     const parado = procs.some(pausado);
     let estado = 'futura';
     if (parado) estado = 'parado';
@@ -94,6 +95,11 @@ export function etapasDe(rota, b, abertosDoLote) {
     return {
       setor,
       idx: i,
+      bagsFila: b.steps[i]?.bags?.length ?? 0,
+      bagsMaquina: procs.reduce((s, p) => s + (p.bags?.length ?? 0), 0),
+      bagsFeitos: aps.reduce((s, a) => s + (a.bags?.length ?? 0), 0),
+      listaFila: b.steps[i]?.bags ?? [],
+      listaMaquina: procs.flatMap(p => p.bags ?? []),
       estado,
       fila: fila(i),
       maquina: procs.reduce((s, p) => s + p.usado, 0),
@@ -173,7 +179,7 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
     lane += ocultosDe(l).length || devolve ? 2 : 1;
     const rota = passos(l);
     const travadas = eFoco ? etapasTravadas(b) : 0;
-    const {lista} = etapasDe(rota, b, abertos.filter(p => p.lote === l.lote));
+    const {lista} = etapasDe(rota, b, abertosDoLote(abertos, l.lote, rota));
     const emEdicao = eFoco && editavel;
 
     nodes.push({
@@ -303,7 +309,7 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
 
 // One sentence for the PCP: where the material of this lot is, and where it goes next.
 export function ondeEsta(lote, b, abertos) {
-  const {lista} = etapasDe(b.rota, b, abertos.filter(p => p.lote === lote.lote));
+  const {lista} = etapasDe(b.rota, b, abertosDoLote(abertos, lote.lote, b.rota));
   const agora = lista.filter(e => ['andamento', 'parado', 'fila'].includes(e.estado));
   const proxima = lista.find(e => e.estado === 'proxima');
   return {agora, proxima, estoque: b.est, enviado: b.enviado, pendenteSemRota: !b.rota.length ? b.pend : 0};
@@ -353,7 +359,7 @@ function marcarFluxo(inicio, nodes, edges, balances) {
 
 // Where a lot stands, in a line and step by step, for lists.
 export function posicaoDoLote(lote, b, abertos) {
-  const {lista} = etapasDe(b.rota, b, abertos.filter(p => p.lote === lote.lote));
+  const {lista} = etapasDe(b.rota, b, abertosDoLote(abertos, lote.lote, b.rota));
   const agora = lista.filter(e => ['andamento', 'parado', 'fila'].includes(e.estado));
   let texto;
   if (agora.length) texto = title(agora[0].setor) + (agora.length > 1 ? ` +${agora.length - 1}` : '');

@@ -42,7 +42,15 @@ export function semLote(state, id) {
     lotes: state.lotes.filter(fica),
     misturas: state.misturas.filter(m => !fora.misturas.has(m.id)),
     apontamentos: state.apontamentos.filter(fica),
-    abertos: state.abertos.filter(fica),
+    // A process may also hold bags of other lots: those stay, the deleted lot's bags leave it.
+    abertos: state.abertos
+      .map(p => {
+        if (!p.bags) return p;
+        const bags = p.bags.filter(e => !fora.lotes.has(e.lote));
+        if (bags.length === p.bags.length) return p;
+        return bags.length ? {...p, bags, lote: bags[0].lote, usado: bags.reduce((s, e) => s + e.peso, 0)} : null;
+      })
+      .filter(p => p && fica(p)),
     envios: state.envios.filter(fica),
     ordens: state.ordens.filter(fica),
     devolucoes: (state.devolucoes ?? []).filter(fica),

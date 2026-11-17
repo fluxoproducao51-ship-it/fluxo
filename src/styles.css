@@ -1192,8 +1192,12 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .volumes-topo .field { width: 170px; flex: none; }
 .volumes-topo small { color: var(--subtle); font-size: 12px; padding-bottom: 10px; }
 .volumes-qtd { font-family: var(--mono); font-size: 20px; font-weight: 600; }
-.volumes { list-style: none; margin: 14px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 10px; max-height: 360px; overflow: auto; }
-.volumes li { display: grid; grid-template-columns: 82px minmax(0, 1fr) 26px; align-items: center; gap: 8px; }
+.volumes { list-style: none; margin: 14px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 6px 10px; max-height: 420px; overflow: auto; }
+.volumes li { display: grid; grid-template-columns: 74px minmax(0, 1fr) 120px 26px; align-items: center; gap: 8px; }
+.volume-material { height: 40px; font-size: 13px; padding-left: 8px; padding-right: 24px; }
+.volumes-composicao { margin-top: 10px; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.volumes-composicao b { color: var(--fg); font-weight: 600; }
+.chao .volume-material { height: 48px; }
 .volume-nome { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .volume-peso { position: relative; }
 .volume-peso .input { font-family: var(--mono); font-size: 17px; padding-right: 36px; text-align: right; }
@@ -1247,3 +1251,103 @@ button.lote-chip:hover { background: var(--accent); color: var(--accent-fg); }
 .devolucao-item span { display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
 .devolucao-item span em { font-style: normal; color: var(--subtle); }
 .devolucao-item .bag-acoes { display: flex; }
+.bag-material { font-size: 11px; color: var(--subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bag-material.destaque { color: var(--accent); font-weight: 600; }
+.devolver-bag small { grid-column: 2; font-size: 11px; color: var(--subtle); }
+
+/* ---------- Stock: filters and parent lots ---------- */
+.estoque-filtros { display: grid; grid-template-columns: minmax(140px, 1.2fr) repeat(2, minmax(130px, 1fr)) repeat(2, minmax(150px, 1.2fr)) auto; gap: 10px; align-items: end; padding: 14px; }
+.estoque-pai { cursor: pointer; background: var(--surface-2); }
+.estoque-pai.aberto { background: var(--accent-soft); }
+.estoque-pai-nome { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
+.estoque-pai-dica { font-size: 12px; color: var(--accent); }
+.estoque-filho { background: var(--surface); }
+.estoque-filho .row-thumb { margin-left: 10px; }
+.estoque-ramo { color: var(--subtle); font-weight: 400; }
+@media (max-width: 1100px) { .estoque-filtros { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .estoque-filtros { grid-template-columns: 1fr 1fr; } }
+.estoque-filhos-n { font-family: var(--mono); font-size: 11px; color: var(--accent); background: var(--surface); border: 1px solid var(--line); padding: 0 5px; }
+.volumes-todos { flex: 1 1 220px !important; width: auto !important; max-width: 320px; }
+.volumes-ajuda { display: block; color: var(--subtle); font-size: 12px; margin-top: 8px; }
+.volumes li.sem-material .volume-material { border-color: var(--stop); }
+
+/* ---------- Production by bag ---------- */
+.iniciar-area { display: flex; flex-direction: column; gap: 22px; }
+.legado-area { border-top: 1px dashed var(--line-strong); padding-top: 16px; }
+.escolher-bags { display: flex; flex-direction: column; gap: 12px; max-height: 460px; overflow: auto; }
+.escolher-lote { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; }
+.escolher-lote-topo { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+.escolher-lote-topo b { color: var(--fg); font-size: 14px; }
+.escolher-lote-topo .trail-link { margin-left: auto; }
+.escolher-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.escolher-bag { display: grid; grid-template-columns: 18px 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; background: var(--surface-2); }
+.escolher-bag b, .escolher-bag small { grid-column: 2; }
+.escolher-bag b { font-family: var(--mono); font-size: 15px; }
+.escolher-bag small { font-size: 11px; color: var(--subtle); }
+.escolher-bag.on { border-color: var(--accent); background: var(--accent-soft); }
+.escolher-bag.off { opacity: 0.45; cursor: not-allowed; }
+.bags-escolhidos { margin: 12px 0 14px; font-size: 14px; color: var(--muted); }
+.bags-escolhidos b { color: var(--fg); font-family: var(--mono); }
+.bags-lista-curta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.bags-lista-curta span { font-size: 12px; padding: 3px 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); }
+.proc-bags { margin-top: 12px; }
+.proc-bags-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
+.proc-bag { display: flex; flex-direction: column; gap: 1px; padding: 7px 9px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.proc-bag b { color: var(--fg); font-size: 13px; }
+.proc-bag small { color: var(--subtle); font-size: 11px; }
+.dialog-largo { width: min(820px, calc(100vw - 32px)); }
+.saida-bags { display: flex; flex-direction: column; border: 1px solid var(--line); max-width: 860px; }
+.saida-bag { display: grid; grid-template-columns: minmax(0, 1.6fr) 100px 150px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.saida-bag small { color: var(--subtle); }
+.saida-bag .num { text-align: right; font-family: var(--mono); }
+.saida-topo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+.saida-total { font-weight: 600; background: var(--surface-2); border-bottom: 0; }
+.saida-peso { position: relative; }
+.saida-peso .input { text-align: right; padding-right: 34px; font-family: var(--mono); font-size: 16px; height: 40px; }
+.saida-destino { color: var(--muted); }
+.chao .saida-peso .input { height: 48px; font-size: 20px; }
+@media (max-width: 860px) { .saida-bag { grid-template-columns: minmax(0, 1fr) 80px 120px; } .saida-destino { display: none; } }
+.bag-abrir { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--accent); text-align: left; }
+.bag-abrir:hover { text-decoration: underline; }
+.bag-situacao { font-size: 11px; color: var(--muted); }
+.lote-volume.bag-maquina { border-color: var(--run); }
+.lote-volume.bag-estoque { border-color: var(--stock); }
+.lote-volume.bag-separado { opacity: 0.7; }
+.hist-bag-titulo { font-size: 22px; font-weight: 600; margin: 2px 0 10px; }
+.hist-bag-agora { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); font-size: 14px; }
+.hist-bag-agora.maquina { border-left-color: var(--run); }
+.hist-bag-agora.estoque { border-left-color: var(--stock); }
+.hist-bag-agora.devolvido { border-left-color: var(--stop); }
+.hist-bag-agora span { color: var(--muted); font-family: var(--mono); }
+.hist-bag-rota { margin: 12px 0; }
+.hist-bag-linha { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.hist-bag-linha li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding-bottom: 14px; position: relative; }
+.hist-bag-linha li::before { content: ''; position: absolute; left: 6px; top: 14px; bottom: 0; width: 2px; background: var(--line); }
+.hist-bag-linha li:last-child::before { display: none; }
+.hist-bag-linha li > div { display: flex; flex-direction: column; gap: 1px; font-size: 13px; color: var(--muted); }
+.hist-bag-linha li b { color: var(--fg); font-size: 14px; }
+.hist-bag-ponto { width: 14px; height: 14px; border: 2px solid var(--accent); background: var(--surface); margin-top: 3px; position: relative; z-index: 1; }
+.hist-bag-ponto.feito { background: var(--accent); }
+.hist-bag-ponto.agora { border-color: var(--run); background: var(--run); }
+.hist-bag-ponto.devolvido { border-color: var(--stop); background: var(--stop); }
+.hist-bag-cartao { text-align: left; cursor: pointer; }
+.hist-bag-cartao.on { border-color: var(--accent); background: var(--accent-soft); outline: 2px solid var(--accent); }
+.no-bags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.no-bags span { font-size: 10.5px; padding: 1px 5px; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
+.no-bags .na-maquina { border-color: var(--run); color: var(--run); }
+.no-bags .na-fila { border-color: var(--ready); color: var(--ready); }
+.mapa-bags { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 4px; }
+.mapa-bag { display: flex; flex-direction: column; padding: 5px 7px; border: 1px solid var(--line); background: var(--surface-2); text-align: left; font-size: 12px; }
+.mapa-bag:hover { border-color: var(--accent); }
+.mapa-bag span { font-family: var(--mono); }
+.mapa-bag small { color: var(--subtle); font-size: 10.5px; }
+.ap-bags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.ap-bags em { font-style: normal; font-size: 11px; padding: 0 4px; border: 1px solid var(--line); background: var(--surface-2); font-family: var(--mono); }
+.hist-bags-n { font-family: var(--mono); color: var(--accent); }
+.hist-linha-aberta td { background: var(--accent-soft); }
+.hist-bags-detalhe td { background: var(--surface-2); cursor: default; padding: 8px 12px 12px; }
+.hist-bags-tabela { display: flex; flex-direction: column; gap: 0; }
+.hist-bags-row { display: grid; grid-template-columns: minmax(150px, 1.4fr) 70px 70px 80px 110px 110px minmax(100px, 1fr); gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.hist-bags-row.topo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 600; }
+.hist-bags-row .n { text-align: right; font-family: var(--mono); }
+.hist-bags-tabela .trail-link { align-self: flex-start; margin-top: 8px; }

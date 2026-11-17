@@ -39,7 +39,7 @@ export function Misturas() {
           const b = balances.get(l.lote);
           return [
             b.est > 0 && {key: `${l.lote}|estoque`, lote: l, de: 'estoque', saldo: b.est},
-            b.aberto && b.pend > 0 && {key: `${l.lote}|pendente`, lote: l, de: 'pendente', saldo: b.pend}
+            b.aberto && !b.porBag && b.pend > 0 && {key: `${l.lote}|pendente`, lote: l, de: 'pendente', saldo: b.pend}
           ];
         })
         .filter(Boolean),

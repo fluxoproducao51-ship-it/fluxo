@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react';
 import {AnimatePresence, motion} from 'framer-motion';
 import {useStore} from '../state/store.jsx';
-import {kg, materialDe, nomeVolume, title, today} from '../state/data.js';
+import {kg, materialDe, materialDoBag, nomeVolume, title, today} from '../state/data.js';
 import {podeDevolverBag} from '../state/balance.js';
+import {HistoricoDoBag} from './HistoricoDoBag.jsx';
 import {Button} from './Button.jsx';
 import {MaterialCode} from './MaterialCode.jsx';
 import {oQueSaiComLote} from '../state/excluir.js';
@@ -46,6 +47,14 @@ export function Dialogs() {
             {dialog.tipo === 'envio' && <Envio lote={dialog.lote} cliente={dialog.cliente} pesoSugerido={dialog.peso} />}
             {dialog.tipo === 'excluirLote' && <ExcluirLote lote={dialog.lote} />}
             {dialog.tipo === 'devolucao' && <Devolucao lote={dialog.lote} bag={dialog.bag} />}
+            {dialog.tipo === 'bag' && (
+              <>
+                <HistoricoDoBag lote={dialog.lote} i={dialog.bag} />
+                <div style={{marginTop: 16, textAlign: 'right'}}>
+                  <Button variant="secondary" label="Fechar" onClick={closeDialog} />
+                </div>
+              </>
+            )}
           </motion.div>
         </>
       )}
@@ -212,7 +221,7 @@ function Devolucao({lote: id, bag}) {
   const lote = loteDe(id);
   const b = balancoDe(id);
   const devolvidos = new Set(devolucoes.filter(d => d.lote === id).map(d => d.bag));
-  const disponiveis = (lote?.bags ?? []).map((peso, i) => ({i, peso})).filter(x => !devolvidos.has(x.i) && podeDevolverBag(lote, b, x.peso));
+  const disponiveis = (lote?.bags ?? []).map((peso, i) => ({i, peso})).filter(x => !devolvidos.has(x.i) && podeDevolverBag(lote, b, x.peso, x.i));
   const [marcados, setMarcados] = useState(() => new Set(disponiveis.some(x => x.i === bag) ? [bag] : []));
   const [form, setForm] = useState({motivo: '', nf: '', data: today(), obs: ''});
   const [tried, setTried] = useState(false);
@@ -225,7 +234,7 @@ function Devolucao({lote: id, bag}) {
   const peso = escolhidos.reduce((s, x) => s + x.peso, 0);
   const erro = !escolhidos.length
     ? `Marque pelo menos um ${nome.toLowerCase()}.`
-    : peso > b.steps[0].pend
+    : !b.porBag && peso > b.steps[0].pend
       ? `Só ${kg(b.steps[0].pend)} ainda não entraram em produção.`
       : !form.motivo
         ? 'Escolha o motivo da devolução.'
@@ -286,6 +295,7 @@ function Devolucao({lote: id, bag}) {
               {nome} {x.i + 1}
             </span>
             <b>{kg(x.peso)}</b>
+            <small>{title(materialDoBag(lote, x.i))}</small>
           </label>
         ))}
       </div>

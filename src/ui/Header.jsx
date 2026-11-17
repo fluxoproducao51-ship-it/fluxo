@@ -26,7 +26,8 @@ const GROUPS = [
       {id: 'mapa', label: 'Mapa do lote', icon: 'flow'},
       {id: 'lotes', label: 'Lotes', icon: 'layers'},
       {id: 'relatorios', label: 'Relatórios', icon: 'chart'},
-      {id: 'historicomaquinas', label: 'Histórico por máquina', icon: 'engrenagem'}
+      {id: 'historicomaquinas', label: 'Histórico por máquina', icon: 'engrenagem'},
+      {id: 'historicobags', label: 'Histórico por bag', icon: 'bag'}
     ]
   },
   {

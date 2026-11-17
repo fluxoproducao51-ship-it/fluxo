@@ -118,6 +118,9 @@ export function divergencia(lote) {
 }
 
 export const materialDe = lote => lote.materiais.join(' + ') || '—';
+// Lots received before bags had their own material: every bag is of the lot's (first) material.
+export const materialDoBag = (lote, i) => lote.bagsMateriais?.[i] ?? lote.materiais[0] ?? null;
+export const bagsMisturados = lote => new Set(lote.bags.map((_, i) => materialDoBag(lote, i))).size > 1;
 
 export function setorEtapa(setor) {
   return SETOR_ETAPA[setor] ?? setor;

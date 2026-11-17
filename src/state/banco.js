@@ -22,7 +22,7 @@ const TABELAS = [
     chave: 'lote',
     de: s => s.lotes,
     colunas: [
-      'lote', 'data', 'cliente', 'materiais', 'nf', 'compra', 'tipo', 'embalagem', 'cor', 'conferente', 'bags', 'peso_entrada', 'peso_nf',
+      'lote', 'data', 'cliente', 'materiais', 'nf', 'compra', 'tipo', 'embalagem', 'cor', 'conferente', 'bags', 'bags_materiais', 'bags_rotas', 'peso_entrada', 'peso_nf',
       'peso_do_quadro', 'status', 'setor', 'galpao', 'rota', 'rota_log', 'origem', 'inicial', 'novo', 'importado', 'molhado', 'obs'
     ]
   },
@@ -34,10 +34,10 @@ const TABELAS = [
     de: s => s.apontamentos,
     colunas: [
       'id', 'lote', 'setor', 'etapa', 'data', 'inicio', 'fim', 'horas', 'pausas', 'usado', 'obtido', 'separacao', 'continua',
-      'voltou_para_fila', 'destino', 'po', 'lixo', 'contaminado', 'perdas', 'operador', 'obs', 'importado'
+      'voltou_para_fila', 'destino', 'po', 'lixo', 'contaminado', 'perdas', 'bags', 'processo', 'operador', 'obs', 'importado'
     ]
   },
-  {tabela: 'processos_abertos', chave: 'id', de: s => s.abertos, colunas: ['id', 'lote', 'etapa', 'setor', 'usado', 'operador', 'inicio', 'pausas']},
+  {tabela: 'processos_abertos', chave: 'id', de: s => s.abertos, colunas: ['id', 'lote', 'etapa', 'setor', 'usado', 'operador', 'inicio', 'pausas', 'bags']},
   {tabela: 'envios', chave: 'id', de: s => s.envios, colunas: ['id', 'lote', 'data', 'cliente', 'nf', 'responsavel', 'peso']},
   {tabela: 'devolucoes', chave: 'id', de: s => s.devolucoes, colunas: ['id', 'lote', 'bag', 'peso', 'motivo', 'nf', 'data', 'responsavel', 'obs']},
   {tabela: 'crm_etapas', chave: 'id', de: s => s.crm.etapas, colunas: ['id', 'nome', 'ordem', 'probabilidade', 'ativo'], crm: true},

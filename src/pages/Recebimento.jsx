@@ -119,11 +119,25 @@ export function Recebimento({onGo}) {
   const [form, setForm] = useState(EMPTY);
   // One line per volume that arrived, each with its own weight from the scale.
   const [pesos, setPesos] = useState(['']);
+  // Material of each bag, picked from the registered ones; "all bags" fills every line at once.
+  const [mats, setMats] = useState(['']);
   const [tried, setTried] = useState(false);
   // The route follows the material until someone picks or edits one by hand.
   const [etapas, setEtapas] = useState(null);
   const rotas = cadastros.rotas.filter(r => r.ativo);
-  const sugerida = sugerirRota(form.material, rotas);
+  // Weight per material across the bags; the heaviest one picks the route until each bag has its own.
+  const composicao = Object.entries(
+    pesos.reduce((acc, p, i) => {
+      const m = mats[i];
+      if (!m) return acc;
+      acc[m] = acc[m] ?? {n: 0, kg: 0};
+      acc[m].n += 1;
+      acc[m].kg += parseKg(p) ?? 0;
+      return acc;
+    }, {})
+  ).sort((a, b) => b[1].kg - a[1].kg || b[1].n - a[1].n);
+  const principal = composicao[0]?.[0] ?? '';
+  const sugerida = sugerirRota(principal, rotas);
   const escolhida = form.rotaId ? rotas.find(r => r.id === form.rotaId) : sugerida;
   const rota = etapas ?? escolhida?.etapas ?? [];
   const campos = useRef([]);
@@ -140,25 +154,35 @@ export function Recebimento({onGo}) {
   const configurados = materiaisConfigurados(cadastros);
 
   const bags = pesos.map(parseKg);
+  // Bags can only be of materials the role may receive.
+  const opcoesMaterial = defineRota ? materiais : configurados;
   const semPeso = bags.map((b, i) => (b ? null : i + 1)).filter(Boolean);
+  const semMaterial = pesos.map((_, i) => (mats[i] ? null : i + 1)).filter(Boolean);
   const pesados = bags.filter(Boolean);
   const total = pesados.reduce((s, b) => s + b, 0);
   const volume = nomeVolume(form.embalagem);
   const nf = parseKg(form.pesoNF);
   const diff = nf && total ? (total - nf) / nf : null;
-  const missing = [!form.cliente && 'cliente', !form.material && 'material', !pesos.length && 'pesagens', semPeso.length > 0 && `peso ${semPeso.length === 1 ? 'do' : 'dos'} ${nomeVolume(form.embalagem, semPeso.length).toLowerCase()} ${semPeso.join(', ')}`, defineRota && !rota.length && 'rota', numeroRepetido && 'número do lote (já existe)'].filter(Boolean);
+  const missing = [!form.cliente && 'cliente', !pesos.length && 'pesagens', semMaterial.length > 0 && `material ${semMaterial.length === 1 ? 'do' : 'dos'} ${nomeVolume(form.embalagem, semMaterial.length).toLowerCase()} ${semMaterial.join(', ')}`, semPeso.length > 0 && `peso ${semPeso.length === 1 ? 'do' : 'dos'} ${nomeVolume(form.embalagem, semPeso.length).toLowerCase()} ${semPeso.join(', ')}`, defineRota && !rota.length && 'rota', numeroRepetido && 'número do lote (já existe)'].filter(Boolean);
 
   const focar = i => setTimeout(() => campos.current[i]?.focus(), 0);
   const mudarQuantidade = texto => {
     const n = Math.min(200, Math.max(0, Number(texto.replace(/\D/g, '')) || 0));
-    setPesos(lista => (n > lista.length ? [...lista, ...Array(n - lista.length).fill('')] : lista.slice(0, n)));
+    const ajusta = valor => lista => (n > lista.length ? [...lista, ...Array(n - lista.length).fill(valor)] : lista.slice(0, n));
+    setPesos(ajusta(''));
+    setMats(ajusta(form.material));
   };
+  const mudarMaterial = (i, valor) => setMats(lista => lista.map((m, j) => (j === i ? valor : m)));
   const mudarPeso = (i, valor) => setPesos(lista => lista.map((p, j) => (j === i ? valor : p)));
   const adicionarVolume = () => {
     setPesos(lista => [...lista, '']);
+    setMats(lista => [...lista, form.material]);
     focar(pesos.length);
   };
-  const removerVolume = i => setPesos(lista => lista.filter((_, j) => j !== i));
+  const removerVolume = i => {
+    setPesos(lista => lista.filter((_, j) => j !== i));
+    setMats(lista => lista.filter((_, j) => j !== i));
+  };
   // Enter jumps to the next volume; on the last one it just leaves the field.
   const proximo = i => {
     const alvo = i < pesos.length - 1 ? campos.current[i + 1] : null;
@@ -172,18 +196,23 @@ export function Recebimento({onGo}) {
     setTried(true);
     if (missing.length) return;
     const cliente = form.cliente.trim().toUpperCase();
-    const material = form.material.trim().toUpperCase();
+    const material = principal;
+    const bagsMateriais = pesos.map((p, i) => (parseKg(p) ? mats[i] : null)).filter(Boolean);
+    // Bags of the main material follow the lot's route; the others take the route of their own material.
+    const rotasDosBags = bagsMateriais.map(m => (m === principal ? null : sugerirRota(m, rotas)?.etapas ?? null));
     const lote = {
       lote: numero,
       data: today(),
       cliente,
-      materiais: [material],
+      materiais: composicao.map(([m]) => m),
       nf: Number(form.nf) || null,
       compra: form.compra,
       tipo: form.tipo,
       embalagem: form.embalagem,
       conferente: perfil.nome.toUpperCase(),
       bags: pesados,
+      bagsMateriais,
+      bagsRotas: rotasDosBags.some(Boolean) ? rotasDosBags : null,
       pesoNF: nf,
       molhado: form.molhado,
       obs: form.obs,
@@ -203,6 +232,7 @@ export function Recebimento({onGo}) {
     });
     setForm(EMPTY);
     setPesos(['']);
+    setMats(['']);
     setEtapas(null);
     setTried(false);
   };
@@ -260,41 +290,6 @@ export function Recebimento({onGo}) {
               <span>Peso da NF (kg)</span>
               <input className="input" inputMode="numeric" value={form.pesoNF} onChange={e => set('pesoNF')(e.target.value)} placeholder="0" />
             </label>
-            <label className="field wide">
-              <span>Material</span>
-              {defineRota ? (
-                <>
-                  <input
-                    className="input"
-                    list="materiais"
-                    value={form.material}
-                    onChange={e => set('material')(e.target.value)}
-                    placeholder="Ex.: Sucata de plástico"
-                    style={tried && !form.material ? {borderColor: 'var(--stop)'} : null}
-                  />
-                  <datalist id="materiais">
-                    {materiais.map(m => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-                </>
-              ) : (
-                <select
-                  className="input"
-                  value={form.material}
-                  onChange={e => set('material')(e.target.value)}
-                  style={tried && !form.material ? {borderColor: 'var(--stop)'} : null}
-                >
-                  <option value="">{configurados.length ? 'Selecione o material' : 'Nenhum material configurado'}</option>
-                  {configurados.map(m => (
-                    <option key={m} value={m}>
-                      {title(m)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {!defineRota && !configurados.length && <small style={{color: 'var(--stop)'}}>Peça ao PCP para ligar os materiais às rotas.</small>}
-            </label>
             <div className="field wide">
               <span>Tipo de compra</span>
               <Seg options={COMPRAS} value={form.compra} onChange={set('compra')} />
@@ -339,7 +334,7 @@ export function Recebimento({onGo}) {
                 <span>
                   {sugerida
                     ? `Rota do material: ${title(sugerida.nome)} (${sugerida.etapas.map(title).join(' → ')}). O PCP pode ajustar depois.`
-                    : 'Selecione o material para ver a rota.'}
+                    : 'Escolha o material dos bags para ver a rota.'}
                 </span>
               </div>
             )}
@@ -365,7 +360,7 @@ export function Recebimento({onGo}) {
         <div className="panel" style={{position: 'sticky', top: 'calc(var(--header) + 16px)'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: 16}}>
             <div className="mat-thumb">
-              <MaterialCode material={form.material || 'misto'} tipo={form.tipo} />
+              <MaterialCode material={principal || 'misto'} tipo={form.tipo} />
             </div>
             <div style={{flex: 1}}>
               <p className="label" style={{margin: 0}}>Pesagem na balança</p>
@@ -384,14 +379,50 @@ export function Recebimento({onGo}) {
                 placeholder="0"
               />
             </label>
-            <small>Informe quantos chegaram e lance o peso de cada um. Enter passa para o próximo.</small>
+            <label className="field volumes-todos">
+              <span>Material de todos os {nomeVolume(form.embalagem, 2).toLowerCase()}</span>
+              <select
+                className="input"
+                value={form.material}
+                onChange={e => {
+                  const m = e.target.value;
+                  set('material')(m);
+                  setMats(lista => lista.map(() => m));
+                }}
+              >
+                <option value="">{opcoesMaterial.length ? 'Selecione' : 'Nenhum material configurado'}</option>
+                {opcoesMaterial.map(m => (
+                  <option key={m} value={m}>
+                    {title(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+          <small className="volumes-ajuda">
+            Informe quantos chegaram, escolha o material de todos e lance o peso de cada um (Enter passa para o próximo). Se algum for de outro material, troque na linha dele.
+          </small>
+          {!defineRota && !configurados.length && <small style={{color: 'var(--stop)'}}>Peça ao PCP para ligar os materiais às rotas.</small>}
           <ol className="volumes">
             {pesos.map((p, i) => (
-              <li key={i} className={tried && !parseKg(p) ? 'sem-peso' : ''}>
+              <li key={i} className={`${tried && !parseKg(p) ? 'sem-peso' : ''} ${tried && !mats[i] ? 'sem-material' : ''}`}>
                 <span className="volume-nome">
                   {volume} {i + 1}
                 </span>
+                <select
+                  className="input volume-material"
+                  value={mats[i] ?? ''}
+                  onChange={e => mudarMaterial(i, e.target.value)}
+                  aria-label={`Material do ${volume.toLowerCase()} ${i + 1}`}
+                  title={mats[i] ? title(mats[i]) : 'Escolha o material'}
+                >
+                  <option value="">Material</option>
+                  {opcoesMaterial.map(m => (
+                    <option key={m} value={m}>
+                      {title(m)}
+                    </option>
+                  ))}
+                </select>
                 <div className="volume-peso">
                   <input
                     ref={el => (campos.current[i] = el)}
@@ -412,6 +443,16 @@ export function Recebimento({onGo}) {
             ))}
           </ol>
           <Button icon="plus" label={`Adicionar ${volume.toLowerCase()}`} onClick={adicionarVolume} />
+          {composicao.length > 1 && (
+            <div className="volumes-composicao">
+              Materiais neste lote:{' '}
+              {composicao.map(([m, v]) => (
+                <span key={m}>
+                  <b>{title(m)}</b> {v.n} · {kg(v.kg)}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="totals">
             <div className="total">
               <span>Pesado ({pesados.length} de {pesos.length})</span>

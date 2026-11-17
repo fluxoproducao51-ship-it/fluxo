@@ -10,8 +10,9 @@ import {MaterialCode} from '../ui/MaterialCode.jsx';
 import {RotaProgresso} from '../ui/RotaEditor.jsx';
 import {Status} from '../ui/Status.jsx';
 import {pode} from '../state/perfis.js';
+import {Corpo, EASE_OUT, Passos, Rodape} from '../ui/Wizard.jsx';
+import {AdicionarBags, BagsDoProcesso, FinalizarBags, IniciarBags} from './ProducaoBags.jsx';
 
-const EASE_OUT = [0.16, 1, 0.3, 1];
 // Under three minutes a kg/h figure is noise, not productivity.
 const MIN_HORAS = 0.05;
 const MOTIVOS = [
@@ -37,7 +38,7 @@ function useNow(ms = 1000) {
 }
 
 const PARTES = {
-  apontar: {titulo: 'Iniciar processo', sub: 'Escolha o lote quando o material entrar na máquina. A sequência segue a rota de cada lote.'},
+  apontar: {titulo: 'Iniciar processo', sub: 'Escolha a máquina e os bags que vão entrar. Cada bag segue a rota do seu material.'},
   andamento: {titulo: 'Em andamento', sub: 'O que está na máquina agora. Finalize quando o material sair ou registre uma parada.'},
   lancamentos: {titulo: 'Meus lançamentos', sub: 'Os processos que você finalizou hoje.'}
 };
@@ -50,7 +51,8 @@ export function Apontar({initial, parte, onGo}) {
     const soma = setor => mapa.set(setor, (mapa.get(setor) ?? 0) + 1);
     abertos.forEach(p => soma(p.setor));
     for (const b of balances.values()) {
-      if (b.aberto && !b.processo) b.steps.forEach(s => s.setor && s.pend > 0 && soma(s.setor));
+      // Bag lots can wait at one machine while other bags run in another.
+      if (b.aberto && (b.porBag || !b.processo)) b.steps.forEach(s => s.setor && s.pend > 0 && soma(s.setor));
     }
     return [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [abertos, balances]);
@@ -84,12 +86,17 @@ export function Apontar({initial, parte, onGo}) {
         </section>
       )}
       {/* The start form stays mounted so a half-filled lot survives a look at the other screens. */}
-      <div hidden={parte !== 'apontar'}>
-        <IniciarWizard key={maquina} inicial={initial?.lote} maquina={maquina} onIniciado={() => onGo('andamento')} />
+      <div hidden={parte !== 'apontar'} className="iniciar-area">
+        <IniciarBags key={maquina} maquina={maquina} inicial={initial?.lote} onIniciado={() => onGo('andamento')} />
+        <IniciarLegado maquina={maquina} inicial={initial?.lote} onIniciado={() => onGo('andamento')} />
       </div>
       {parte === 'andamento' &&
         (aberto ? (
-          <FinalizarWizard key={aberto.id} proc={aberto} onClose={() => setFinalizando(null)} />
+          aberto.bags ? (
+            <FinalizarBags key={aberto.id} proc={aberto} onClose={() => setFinalizando(null)} />
+          ) : (
+            <FinalizarWizard key={aberto.id} proc={aberto} onClose={() => setFinalizando(null)} />
+          )
         ) : naMaquina.length ? (
           <section className="running">
             {naMaquina.map(p => (
@@ -116,7 +123,9 @@ function ProcessoCard({proc, onFinalizar}) {
   const parado = pausado(proc);
   const pausa = proc.pausas.find(p => !p.fim);
   const [parando, setParando] = useState(false);
+  const [adicionando, setAdicionando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  const lotesDoProc = proc.bags ? [...new Set(proc.bags.map(e => e.lote))] : [proc.lote];
   const total = lote?.rota?.length ?? 0;
   const terminadas = proc.pausas.filter(p => p.fim);
   const jaParou = terminadas.reduce((s, p) => s + (Date.parse(p.fim) - Date.parse(p.inicio)), 0) / 3600000;
@@ -142,11 +151,17 @@ function ProcessoCard({proc, onFinalizar}) {
         <span className="pick-thumb">{lote && <MaterialCode material={materialDe(lote)} tipo={lote.tipo} />}</span>
         <div style={{flex: 1, minWidth: 0}}>
           <div className="pick-title">
-            Lote {proc.lote} {proc.exemplo && <span className="tag">exemplo</span>}
+            {proc.bags ? `${title(proc.setor)} · ${proc.bags.length} ${proc.bags.length === 1 ? 'bag' : 'bags'}` : `Lote ${proc.lote}`}
           </div>
           <div className="pick-sub">
-            Etapa {proc.etapa + 1}
-            {total ? ` de ${total}` : ''} · {title(proc.setor)}
+            {proc.bags ? (
+              lotesDoProc.map(l => `Lote ${l}`).join(', ')
+            ) : (
+              <>
+                Etapa {proc.etapa + 1}
+                {total ? ` de ${total}` : ''} · {title(proc.setor)}
+              </>
+            )}
           </div>
           <div className="pick-meta">
             {!parado && <Status value="EM PROCESSO" short />}
@@ -160,6 +175,7 @@ function ProcessoCard({proc, onFinalizar}) {
           <small>{parado ? 'tempo rodando' : `${kg(proc.usado)} na máquina`}</small>
         </div>
       </div>
+      {proc.bags && <BagsDoProcesso proc={proc} podeMexer={!parado} />}
       {terminadas.length > 0 && (
         <div className="parada-historico">
           {terminadas.length} {terminadas.length === 1 ? 'parada anterior' : 'paradas anteriores'} · {relogio(jaParou)} ·{' '}
@@ -181,6 +197,7 @@ function ProcessoCard({proc, onFinalizar}) {
         ) : (
           <>
             <Button variant="primary" size="lg" icon="check" label="Finalizar" onClick={onFinalizar} />
+            {proc.bags && <Button variant="secondary" size="lg" icon="plus" label="Adicionar bag" onClick={() => setAdicionando(true)} />}
             <Button variant="danger" size="lg" icon="pause" label="Parar máquina" onClick={() => setParando(true)} />
           </>
         )}
@@ -193,7 +210,7 @@ function ProcessoCard({proc, onFinalizar}) {
               label="Sim, cancelar"
               onClick={() => {
                 cancelar(proc.id);
-                notify({status: 'Início cancelado', title: `Lote ${proc.lote}`, detail: `${kg(proc.usado)} voltaram para a fila`, icon: 'refresh'});
+                notify({status: 'Início cancelado', title: proc.bags ? `${title(proc.setor)} · ${proc.bags.length} bags` : `Lote ${proc.lote}`, detail: `${kg(proc.usado)} voltaram para a fila`, icon: 'refresh'});
               }}
             />
             <Button variant="ghost" label="Não" onClick={() => setConfirmando(false)} />
@@ -204,6 +221,7 @@ function ProcessoCard({proc, onFinalizar}) {
       </div>
       {parado && <p className="parada-dica">Para finalizar, retome a produção primeiro.</p>}
       {parando && <PararMaquina proc={proc} onClose={() => setParando(false)} />}
+      {adicionando && <AdicionarBags proc={proc} onClose={() => setAdicionando(false)} />}
     </div>
   );
 }
@@ -315,61 +333,26 @@ function MeusLancamentos() {
   );
 }
 
-/* ---------- Wizard shell ---------- */
-
-function Passos({passos, atual}) {
-  return (
-    <div className="wiz-steps">
-      {passos.map((p, i) => (
-        <div key={p} className={`wiz-step ${i < atual ? 'done' : ''} ${i === atual ? 'now' : ''}`}>
-          <span className="wiz-dot">{i < atual ? <Icon name="check" size={12} stroke={3} /> : i + 1}</span>
-          <span className="wiz-label">{p}</span>
-        </div>
-      ))}
-      <div className="wiz-bar">
-        <motion.div animate={{width: `${(atual / (passos.length - 1)) * 100}%`}} transition={{duration: 0.4, ease: EASE_OUT}} />
-      </div>
-    </div>
-  );
-}
-
-function Corpo({passo, children}) {
-  return (
-    <motion.div
-      key={passo}
-      className="wiz-body"
-      initial={{opacity: 0, x: 24}}
-      animate={{opacity: 1, x: 0}}
-      transition={{duration: 0.3, ease: EASE_OUT}}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function Rodape({passo, onVoltar, onAvancar, avancarLabel = 'Avançar', erro, final}) {
-  return (
-    <div className="wiz-foot">
-      {passo > 0 ? <Button variant="secondary" size="lg" label="← Voltar" onClick={onVoltar} /> : <span />}
-      <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
-        <AnimatePresence>
-          {erro && (
-            <motion.span key={erro} className="wiz-err" initial={{opacity: 0, x: 8}} animate={{opacity: 1, x: 0}}>
-              {erro}
-            </motion.span>
-          )}
-        </AnimatePresence>
-        {onAvancar && (
-          <Button variant="primary" size="lg" icon={final ? 'check' : 'arrowRight'} label={avancarLabel} onClick={onAvancar} />
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ---------- Start a process ---------- */
 
 const PASSOS_INICIO = ['Lote', 'Máquina', 'Quantidade', 'Conferir'];
+
+// Lots received or started before production by bag: they finish the old way, by weight.
+function IniciarLegado({inicial, maquina, onIniciado}) {
+  const {lotes, balances} = useStore();
+  const tem = lotes.some(l => {
+    const b = balances.get(l.lote);
+    return b?.aberto && !b.porBag && b.pend > 0 && !b.processo && (!maquina || b.steps.some(s => s.setor === maquina && s.pend > 0));
+  });
+  if (!tem) return null;
+  return (
+    <div className="legado-area">
+      <p className="label">Lotes do modelo antigo, por peso</p>
+      <p className="page-sub" style={{fontSize: 13, marginBottom: 10}}>Lotes que já tinham produção lançada antes dos bags terminam do jeito antigo.</p>
+      <IniciarWizard key={maquina} inicial={inicial} maquina={maquina} onIniciado={onIniciado} />
+    </div>
+  );
+}
 
 function IniciarWizard({inicial, maquina, onIniciado}) {
   const {lotes, balances, perfil, iniciar, notify, ativos, statusDe, abrirLote} = useStore();
@@ -378,12 +361,12 @@ function IniciarWizard({inicial, maquina, onIniciado}) {
       lotes
         .filter(l => {
           const b = balances.get(l.lote);
-          return b?.aberto && b.pend > 0 && !b.processo && (!maquina || b.steps.some(s => s.setor === maquina && s.pend > 0));
+          return b?.aberto && !b.porBag && b.pend > 0 && !b.processo && (!maquina || b.steps.some(s => s.setor === maquina && s.pend > 0));
         })
         .sort((a, b) => b.data.localeCompare(a.data)),
     [lotes, balances, maquina]
   );
-  const ocupados = useMemo(() => lotes.filter(l => balances.get(l.lote)?.processo), [lotes, balances]);
+  const ocupados = useMemo(() => lotes.filter(l => !balances.get(l.lote)?.porBag && balances.get(l.lote)?.processo), [lotes, balances]);
   const [passo, setPasso] = useState(0);
   const [sel, setSel] = useState(null);
   const [etapa, setEtapa] = useState(null);
