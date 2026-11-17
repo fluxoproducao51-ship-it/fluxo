@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from 'react';
 import {motion} from 'framer-motion';
 import {useStore} from '../state/store.jsx';
-import {hours, kg, nomeVolume, pct, slug, title} from '../state/data.js';
+import {hours, kg, materialDe, nomeVolume, pct, slug, title} from '../state/data.js';
 import {horasLiquidas} from '../state/balance.js';
 import {rotaDoBag, tempoNaMaquina} from '../state/bags.js';
 import {Button} from '../ui/Button.jsx';
@@ -65,7 +65,7 @@ function OperadorCampo({valor, onChange}) {
 }
 
 // The bags waiting for one machine, grouped by lot. Only one material can go in at a time.
-function EscolherBags({bags, marcados, onMarcar, material}) {
+function EscolherBags({bags, marcados, onMarcar, material, idade}) {
   const grupos = useMemo(() => {
     const m = new Map();
     for (const bag of bags) m.set(bag.lote, [...(m.get(bag.lote) ?? []), bag]);
@@ -84,6 +84,7 @@ function EscolherBags({bags, marcados, onMarcar, material}) {
               <b className="mono">Lote {lote}</b>
               <span>
                 {title(l.cliente)} · {lista.length} {nomeVolume(l.embalagem, lista.length).toLowerCase()} aguardando
+                {idade ? ` · ${chegou(l.data)}` : ''}
               </span>
               {livres.length > 1 && (
                 <button type="button" className="trail-link" onClick={() => onMarcar(livres, !todos)}>
@@ -127,172 +128,261 @@ function useMarcados() {
   return [marcados, marcar, setMarcados];
 }
 
-/* ---------- Start a process with bags ---------- */
+/* ---------- Start a process: one screen ---------- */
 
-const PASSOS = ['Máquina', 'Bags', 'Conferir'];
+const diasDesde = data => Math.max(0, Math.round((Date.parse(new Date().toLocaleDateString('sv-SE')) - Date.parse(data)) / 86400000));
+const chegou = data => {
+  const d = diasDesde(data);
+  return d === 0 ? 'chegou hoje' : d === 1 ? 'chegou ontem' : `chegou há ${d} dias`;
+};
 
-export function IniciarBags({maquina, inicial, onIniciado}) {
-  const {perfil, iniciar, notify, balances, lotes} = useStore();
+// Lots from before production by bag still waiting at a machine: they go in by weight.
+function useLegadosNaFila() {
+  const {lotes, balances} = useStore();
+  return useMemo(() => {
+    const porMaquina = new Map();
+    for (const l of lotes) {
+      const b = balances.get(l.lote);
+      if (!b?.aberto || b.porBag || b.processo || b.pend <= 0) continue;
+      b.steps.forEach((s, i) => {
+        if (s.setor && s.pend > 0) porMaquina.set(s.setor, [...(porMaquina.get(s.setor) ?? []), {lote: l, etapa: i, pend: s.pend}]);
+      });
+    }
+    return porMaquina;
+  }, [lotes, balances]);
+}
+
+export function IniciarBags({maquina, setMaquina, inicial, onIniciado}) {
+  const {perfil, iniciar, notify, balances, lotes, abertos, ativos} = useStore();
   const naFila = useBagsNaFila();
-  const maquinas = [...naFila.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const [passo, setPasso] = useState(maquina ? 1 : 0);
-  const [setor, setSetor] = useState(maquina || '');
+  const legados = useLegadosNaFila();
   const [marcados, marcar, setMarcados] = useMarcados();
+  const [material, setMaterial] = useState(null);
   const [operador, setOperador] = useState(perfil.tipo === 'producao' ? perfil.nome.toUpperCase() : '');
   const [erro, setErro] = useState(null);
-  const disponiveis = naFila.get(setor) ?? [];
-  const escolhidos = disponiveis.filter(x => marcados.has(x.id));
-  const material = escolhidos[0]?.material ?? null;
+  const [adicionarEm, setAdicionarEm] = useState(null);
+  const [legado, setLegado] = useState(null);
+
+  // Machines worth showing: something waits there, something runs there, or it is this tablet's machine.
+  const maquinas = useMemo(() => {
+    const nomes = new Set([...naFila.keys(), ...legados.keys(), ...abertos.map(p => p.setor), ...(maquina ? [maquina] : [])]);
+    return [...nomes].sort((a, b) => a.localeCompare(b)).map(nome => ({
+      nome,
+      bags: naFila.get(nome) ?? [],
+      legados: legados.get(nome) ?? [],
+      rodando: abertos.filter(p => p.setor === nome)
+    }));
+  }, [naFila, legados, abertos, maquina]);
+  const atual = maquinas.find(m => m.nome === maquina) ?? null;
+  const materiais = useMemo(() => {
+    const cont = new Map();
+    for (const x of atual?.bags ?? []) cont.set(x.material, (cont.get(x.material) ?? 0) + 1);
+    return [...cont.entries()].sort((a, b) => b[1] - a[1]);
+  }, [atual]);
+  const materialAtivo = material && materiais.some(([m]) => m === material) ? material : materiais[0]?.[0] ?? null;
+  const visiveis = (atual?.bags ?? []).filter(x => x.material === materialAtivo).sort((a, b) => a.loteObj.data.localeCompare(b.loteObj.data) || a.lote.localeCompare(b.lote) || a.n - b.n);
+  const escolhidos = visiveis.filter(x => marcados.has(x.id));
   const total = escolhidos.reduce((s, x) => s + x.peso, 0);
-  const semRota = lotes.filter(l => balances.get(l.lote)?.porBag && balances.get(l.lote).steps.some(s => !s.setor && s.bags.length)).map(l => l.lote);
+  const semRota = lotes.filter(l => balances.get(l.lote)?.porBag && balances.get(l.lote).steps.some(st => !st.setor && st.bags.length)).map(l => l.lote);
+
+  const escolherMaquina = nome => {
+    setMaquina(nome);
+    setMarcados(new Set());
+    setMaterial(null);
+    setErro(null);
+  };
 
   // Coming from a lot's "Iniciar processo" button: its machine and bags come chosen.
   useEffect(() => {
     if (!inicial) return;
-    const alvo = maquinas.find(([, lista]) => lista.some(x => x.lote === inicial));
-    if (!alvo) return;
-    setSetor(alvo[0]);
-    const doLote = alvo[1].filter(x => x.lote === inicial);
-    const mat = doLote[0].material;
-    marcar(doLote.filter(x => x.material === mat), true);
-    setPasso(1);
+    for (const [m, lista] of naFila) {
+      const doLote = lista.filter(x => x.lote === inicial);
+      if (!doLote.length) continue;
+      setMaquina(m);
+      setMaterial(doLote[0].material);
+      marcar(doLote.filter(x => x.material === doLote[0].material), true);
+      return;
+    }
   }, []);
 
-  const avancar = () => {
-    if (passo === 0 && !setor) return setErro('Escolha a máquina.');
-    if (passo === 1) {
-      if (!escolhidos.length) return setErro('Marque os bags que vão entrar na máquina.');
-      if (!operador.trim()) return setErro('Informe o operador.');
-    }
-    setErro(null);
-    setPasso(p => p + 1);
-  };
-
   const comecar = () => {
+    if (!escolhidos.length) return setErro('Marque os bags que vão entrar na máquina.');
+    if (!operador.trim()) return setErro('Informe o operador.');
     const quem = operador.trim().toUpperCase();
     const bags = escolhidos.map(x => entradaDe(x, quem));
     const primeiro = escolhidos[0];
     const rotaLote = balances.get(primeiro.lote).rota;
-    iniciar({id: `pr-${Date.now()}`, lote: primeiro.lote, etapa: Math.max(0, rotaLote.indexOf(setor)), setor, usado: total, operador: quem, bags});
+    iniciar({id: `pr-${Date.now()}`, lote: primeiro.lote, etapa: Math.max(0, rotaLote.indexOf(maquina)), setor: maquina, usado: total, operador: quem, bags});
     const lotesNoProcesso = [...new Set(bags.map(e => e.lote))];
     notify({
       status: `Processo iniciado às ${localTime(agoraISO())}`,
-      title: `${title(setor)} · ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'}`,
+      title: `${title(maquina)} · ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'}`,
       detail: `${kg(total)} · ${lotesNoProcesso.length === 1 ? `lote ${lotesNoProcesso[0]}` : `lotes ${lotesNoProcesso.join(', ')}`} · ${title(quem)}`,
       icon: 'play'
     });
     setMarcados(new Set());
-    setPasso(maquina ? 1 : 0);
-    if (!maquina) setSetor('');
+    setErro(null);
     onIniciado();
   };
 
   return (
-    <section className="panel wiz">
-      <div className="wiz-head">
-        <h2 className="section-title">Iniciar processo</h2>
-        <Passos passos={PASSOS} atual={passo} />
+    <section className="iniciar">
+      <div className="iniciar-maquinas">
+        {maquinas.map(m => (
+          <button key={m.nome} type="button" className={`iniciar-maquina ${maquina === m.nome ? 'on' : ''}`} onClick={() => escolherMaquina(m.nome)}>
+            <b>{title(m.nome)}</b>
+            <span>
+              {m.bags.length ? `${m.bags.length} ${m.bags.length === 1 ? 'bag' : 'bags'} aguardando` : m.legados.length ? 'lote por peso' : 'nada aguardando'}
+            </span>
+            {m.rodando.length > 0 && <small className={m.rodando.some(p => p.pausas.some(x => !x.fim)) ? 'parada' : ''}>{m.rodando.some(p => p.pausas.some(x => !x.fim)) ? 'parada' : 'rodando'}</small>}
+          </button>
+        ))}
+        {!maquinas.length && <div className="empty">Nenhum bag aguardando máquina agora.</div>}
       </div>
 
-      {passo === 0 && (
-        <Corpo passo={0}>
-          <p className="wiz-q">Em qual máquina os bags vão entrar?</p>
-          <div className="machine-grid">
-            {maquinas.map(([m, lista]) => (
-              <button
-                key={m}
-                type="button"
-                className={`machine ${setor === m ? 'on' : ''}`}
-                onClick={() => {
-                  setSetor(m);
-                  setMarcados(new Set());
-                  setErro(null);
-                  setPasso(1);
-                }}
-              >
-                <span className="machine-step">{new Set(lista.map(x => x.lote)).size === 1 ? `Lote ${lista[0].lote}` : `${new Set(lista.map(x => x.lote)).size} lotes`}</span>
-                <span className="machine-name">{title(m)}</span>
-                <span className="machine-kg">
-                  {lista.length} {lista.length === 1 ? 'bag' : 'bags'} · {kg(lista.reduce((s, x) => s + x.peso, 0))}
-                </span>
-              </button>
-            ))}
-          </div>
-          {!maquinas.length && <div className="empty">Nenhum bag aguardando máquina agora.</div>}
+      {!atual && maquinas.length > 0 && <p className="iniciar-dica">Escolha a máquina em que o material vai entrar.</p>}
+
+      {atual && (
+        <>
+          {atual.rodando.map(p => (
+            <div key={p.id} className="iniciar-rodando">
+              <Icon name="alert" size={16} />
+              <span>
+                <b>{title(atual.nome)} já está rodando</b>{' '}
+                {p.bags ? `com ${p.bags.length} ${p.bags.length === 1 ? 'bag' : 'bags'} de ${title(p.bags[0]?.material)}` : `com o lote ${p.lote}`} desde {localTime(p.inicio)} · {title(p.operador)}.
+                {p.bags ? ' Para colocar mais bags nesta mesma máquina, adicione ao processo.' : ''}
+              </span>
+              {p.bags && <Button variant="primary" icon="plus" label="Adicionar bags a este processo" onClick={() => setAdicionarEm(p)} />}
+            </div>
+          ))}
+
+          {materiais.length > 1 && (
+            <div className="iniciar-materiais">
+              <span>Material</span>
+              {materiais.map(([m, q]) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`iniciar-material ${materialAtivo === m ? 'on' : ''}`}
+                  onClick={() => {
+                    setMaterial(m);
+                    setMarcados(new Set());
+                    setErro(null);
+                  }}
+                >
+                  {title(m)} · {q} {q === 1 ? 'bag' : 'bags'}
+                </button>
+              ))}
+              <small>Um processo leva um material só.</small>
+            </div>
+          )}
+
+          {visiveis.length > 0 && <EscolherBags bags={visiveis} marcados={marcados} onMarcar={marcar} idade />}
+
+          {atual.legados.map(x => (
+            <button key={x.lote.lote} type="button" className="iniciar-legado" onClick={() => setLegado(x)}>
+              <b className="mono">Lote {x.lote.lote}</b>
+              <span className="tag">por peso</span>
+              <span>
+                {title(materialDe(x.lote))} · {title(x.lote.cliente)} · {chegou(x.lote.data)}
+              </span>
+              <span className="iniciar-legado-kg">{kg(x.pend)} aguardando</span>
+            </button>
+          ))}
+
+          {!visiveis.length && !atual.legados.length && <div className="empty">Nada aguardando {title(atual.nome)} agora.</div>}
           {semRota.length > 0 && (
             <p className="wiz-note">
               <Icon name="alert" size={13} /> {semRota.length === 1 ? 'O lote' : 'Os lotes'} {semRota.join(', ')} {semRota.length === 1 ? 'ainda não tem' : 'ainda não têm'} rota: avise o PCP.
             </p>
           )}
-        </Corpo>
-      )}
 
-      {passo === 1 && (
-        <Corpo passo={1}>
-          <p className="wiz-q">Quais bags vão entrar na {title(setor)}?</p>
-          {disponiveis.length ? (
-            <EscolherBags bags={disponiveis} marcados={marcados} onMarcar={marcar} material={material} />
-          ) : (
-            <div className="empty">Nenhum bag aguardando {title(setor)} agora.</div>
+          {visiveis.length > 0 && (
+            <div className="iniciar-barra">
+              <div className="iniciar-resumo">
+                <b>
+                  {escolhidos.length} {escolhidos.length === 1 ? 'bag' : 'bags'}
+                </b>
+                <span>
+                  {kg(total)} · {title(materialAtivo)}
+                </span>
+              </div>
+              <div className="iniciar-operador">
+                {perfil.tipo === 'producao' ? (
+                  <span>
+                    Operador <b>{title(operador)}</b>
+                  </span>
+                ) : (
+                  <select className="input" value={operador} onChange={e => setOperador(e.target.value)} aria-label="Operador">
+                    <option value="">Operador</option>
+                    {[...new Set([...ativos('operadores'), perfil.nome.toUpperCase()])].map(o => (
+                      <option key={o} value={o}>
+                        {title(o)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {erro && <span className="wiz-err">{erro}</span>}
+              <Button variant="primary" size="lg" icon="play" label={escolhidos.length ? `Iniciar ${title(atual.nome)}` : 'Marque os bags'} disabled={!escolhidos.length} onClick={comecar} />
+            </div>
           )}
-          {material && (
-            <p className="wiz-note">
-              Entram juntos só bags de <b>{title(material)}</b>. Para outro material, inicie outro processo.
-            </p>
-          )}
-          <div className="bags-escolhidos">
-            <b>{escolhidos.length}</b> {escolhidos.length === 1 ? 'bag marcado' : 'bags marcados'} · <b>{kg(total)}</b>
-          </div>
-          <OperadorCampo valor={operador} onChange={setOperador} />
-        </Corpo>
+        </>
       )}
 
-      {passo === 2 && (
-        <Corpo passo={2}>
-          <p className="wiz-q">Confira antes de iniciar</p>
-          <div className="review">
-            <div>
-              <span>Máquina</span>
-              <b>{title(setor)}</b>
-            </div>
-            <div>
-              <span>Bags</span>
-              <b>{escolhidos.length}</b>
-              <small>{title(material)}</small>
-            </div>
-            <div>
-              <span>Entra na máquina</span>
-              <b>{kg(total)}</b>
-              <small>{[...new Set(escolhidos.map(x => x.lote))].map(l => `lote ${l}`).join(', ')}</small>
-            </div>
-            <div>
-              <span>Operador · início</span>
-              <b>{title(operador)}</b>
-              <small>agora, {localTime(agoraISO())}</small>
-            </div>
-          </div>
-          <div className="bags-lista-curta">
-            {escolhidos.map(x => (
-              <span key={x.id}>
-                Bag {x.n} · lote {x.lote} · {kg(x.peso)}
-              </span>
-            ))}
-          </div>
-        </Corpo>
-      )}
-
-      <Rodape
-        passo={passo}
-        erro={erro}
-        onVoltar={() => {
-          setErro(null);
-          setPasso(p => p - 1);
-        }}
-        onAvancar={passo === 0 ? null : passo === 2 ? comecar : avancar}
-        avancarLabel={passo === 2 ? 'Iniciar agora' : 'Avançar'}
-        final={passo === 2}
-      />
+      {adicionarEm && <AdicionarBags proc={adicionarEm} onClose={() => setAdicionarEm(null)} />}
+      {legado && <IniciarPorPeso item={legado} setor={atual?.nome} onClose={() => setLegado(null)} onIniciado={onIniciado} />}
     </section>
+  );
+}
+
+// A lot from before bags: how much of its weight goes into the machine.
+function IniciarPorPeso({item, setor, onClose, onIniciado}) {
+  const {perfil, iniciar, notify} = useStore();
+  const [usado, setUsado] = useState(String(item.pend));
+  const [operador, setOperador] = useState(perfil.tipo === 'producao' ? perfil.nome.toUpperCase() : '');
+  const [erro, setErro] = useState(null);
+  useEffect(() => {
+    const key = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, []);
+  const confirmar = () => {
+    const q = n(usado);
+    if (!q) return setErro('Informe quanto vai entrar na máquina.');
+    if (q > item.pend) return setErro(`Só há ${kg(item.pend)} aguardando.`);
+    if (!operador.trim()) return setErro('Informe o operador.');
+    const quem = operador.trim().toUpperCase();
+    iniciar({id: `pr-${Date.now()}`, lote: item.lote.lote, etapa: item.etapa, setor, usado: q, operador: quem});
+    notify({status: `Processo iniciado às ${localTime(agoraISO())}`, title: `Lote ${item.lote.lote} · ${title(setor)}`, detail: `${kg(q)} na máquina · ${title(quem)}`, icon: 'play'});
+    onClose();
+    onIniciado();
+  };
+  return (
+    <>
+      <div className="sheet-veil" style={{zIndex: 70}} onClick={onClose} />
+      <div className="dialog" role="dialog" aria-modal="true" aria-label="Iniciar lote por peso">
+        <p className="label" style={{margin: 0}}>Lote do modelo antigo · por peso</p>
+        <h2 className="wiz-q" style={{margin: '4px 0 0'}}>
+          Lote {item.lote.lote} na {title(setor)}
+        </h2>
+        <p className="page-sub">Este lote começou antes da produção por bag e termina por peso. Aguardando: {kg(item.pend)}.</p>
+        <div style={{position: 'relative', maxWidth: 360, marginTop: 14}}>
+          <input className="input scale-input" inputMode="numeric" value={usado} onChange={e => setUsado(e.target.value)} autoFocus />
+          <span className="scale-unit">kg</span>
+        </div>
+        <div style={{marginTop: 14}}>
+          <OperadorCampo valor={operador} onChange={setOperador} />
+        </div>
+        <div className="wiz-foot" style={{marginTop: 16}}>
+          <Button variant="secondary" size="lg" label="Voltar" onClick={onClose} />
+          <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+            {erro && <span className="wiz-err">{erro}</span>}
+            <Button variant="primary" size="lg" icon="play" label="Iniciar agora" onClick={confirmar} />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -301,6 +391,7 @@ export function IniciarBags({maquina, inicial, onIniciado}) {
 export function BagsDoProcesso({proc, podeMexer}) {
   const {retirarBag, notify} = useStore();
   const [retirando, setRetirando] = useState(null);
+  const [finalizando, setFinalizando] = useState(null);
   const t = useAgora();
   return (
     <div className="proc-bags">
@@ -321,6 +412,9 @@ export function BagsDoProcesso({proc, podeMexer}) {
               <small>
                 entrou {localTime(e.entrada)} · {title(e.operador)} · {hours(tempoNaMaquina(e.entrada, null, proc.pausas, t))}
               </small>
+              {podeMexer && (
+                <Button size="sm" variant="primary" icon="check" className="proc-bag-fim" label="Finalizar este bag" onClick={() => setFinalizando(e)} />
+              )}
               {podeMexer &&
                 proc.bags.length > 1 &&
                 (retirando === e.bag ? (
@@ -345,7 +439,134 @@ export function BagsDoProcesso({proc, podeMexer}) {
             </div>
           ))}
       </div>
+      {finalizando && <FinalizarUmBag proc={proc} entrada={finalizando} onClose={() => setFinalizando(null)} />}
     </div>
+  );
+}
+
+// One bag leaves the machine with its own weight; the others keep running. The last one closes the process.
+function FinalizarUmBag({proc, entrada, onClose}) {
+  const {loteDe, balances, ativos, sairBag, finalizar, notify} = useStore();
+  const lote = loteDe(entrada.lote);
+  const rota = lote ? rotaDoBag(lote, entrada.i) : [];
+  const proxima = rota[entrada.etapa + 1] ?? null;
+  const tiposPerda = ativos('tiposPerda');
+  const [saida, setSaida] = useState('');
+  const [perdas, setPerdas] = useState({});
+  const [obs, setObs] = useState('');
+  const [erro, setErro] = useState(null);
+  const ultimo = proc.bags.length === 1;
+  const saiu = n(saida);
+  const quebra = saiu ? Math.max(0, entrada.peso - saiu) : 0;
+  const somaPerdas = tiposPerda.reduce((s, t) => s + n(perdas[t]), 0);
+  useEffect(() => {
+    const key = e => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, []);
+  const confirmar = () => {
+    if (!saiu) return setErro('Informe o peso de saída do bag.');
+    if (saiu > entrada.peso) return setErro(`Saiu mais do que entrou (${kg(entrada.peso)}).`);
+    if (somaPerdas > quebra) return setErro(`As perdas somam ${kg(somaPerdas)}, mas a quebra foi de ${kg(quebra)}.`);
+    const fim = agoraISO();
+    const ap = {
+      id: `ap-${Date.now()}`,
+      lote: entrada.lote,
+      etapa: Math.max(0, (balances.get(entrada.lote)?.rota ?? []).indexOf(proc.setor)),
+      setor: proc.setor,
+      data: localDate(proc.inicio),
+      inicio: localTime(proc.inicio),
+      fim: localTime(fim),
+      // Running time of the machine so far: the process may go on with other bags.
+      horas: horasLiquidas(proc),
+      pausas: proc.pausas.map(p => ({...p, fim: p.fim ?? fim})),
+      usado: entrada.peso,
+      obtido: saiu,
+      perdas: quebra ? Object.fromEntries(tiposPerda.filter(t => n(perdas[t]) > 0).map(t => [t, n(perdas[t])])) : {},
+      operador: proc.operador,
+      obs: obs.trim(),
+      processo: proc.id,
+      bags: [
+        {
+          bag: entrada.bag,
+          n: entrada.n,
+          i: entrada.i,
+          material: entrada.material,
+          etapa: entrada.etapa,
+          pesoEntrada: entrada.peso,
+          pesoSaida: saiu,
+          entrada: entrada.entrada,
+          saida: fim,
+          operador: entrada.operador,
+          destino: proxima ? 'proxima' : 'estoque'
+        }
+      ]
+    };
+    if (ultimo) finalizar({id: proc.id, filhos: [], aps: [ap]});
+    else sairBag(proc.id, entrada.bag, ap);
+    notify({
+      status: ultimo ? `${title(proc.setor)} finalizada` : 'Bag finalizado · máquina segue rodando',
+      title: `Bag ${entrada.n} · lote ${entrada.lote}`,
+      detail: `${kg(entrada.peso)} → ${kg(saiu)} · ${proxima ? `segue para ${title(proxima)}` : 'vai para o estoque'}`,
+      icon: 'check'
+    });
+    onClose();
+  };
+  return (
+    <>
+      <div className="sheet-veil" style={{zIndex: 70}} onClick={onClose} />
+      <div className="dialog" role="dialog" aria-modal="true" aria-label="Finalizar bag">
+        <p className="label" style={{margin: 0}}>
+          {title(proc.setor)} · {ultimo ? 'último bag na máquina' : `${proc.bags.length - 1} ${proc.bags.length - 1 === 1 ? 'bag continua' : 'bags continuam'} rodando`}
+        </p>
+        <h2 className="wiz-q" style={{margin: '4px 0 0'}}>
+          Finalizar bag {entrada.n} · lote {entrada.lote}
+        </h2>
+        <p className="page-sub">
+          Entrou {localTime(entrada.entrada)} com {kg(entrada.peso)} · {title(entrada.material)} · {hours(tempoNaMaquina(entrada.entrada, null, proc.pausas))} na máquina
+        </p>
+        <label className="field" style={{marginTop: 14, maxWidth: 360}}>
+          <span>Peso de saída</span>
+          <div style={{position: 'relative'}}>
+            <input className="input scale-input" inputMode="numeric" value={saida} onChange={e => setSaida(e.target.value)} placeholder="0" autoFocus onKeyDown={e => e.key === 'Enter' && confirmar()} />
+            <span className="scale-unit">kg</span>
+          </div>
+        </label>
+        <p className="wiz-note">
+          Depois daqui o bag {proxima ? (
+            <>
+              segue para <b>{title(proxima)}</b>
+            </>
+          ) : (
+            <>
+              vai para o <b>estoque</b>
+            </>
+          )}
+          .{quebra > 0 ? ` Quebra de ${kg(quebra)}.` : ''}
+        </p>
+        {quebra > 0 && tiposPerda.length > 0 && (
+          <div className="fields perdas-campos" style={{marginTop: 8}}>
+            {tiposPerda.map(t => (
+              <label key={t} className="field">
+                <span>{title(t)} (kg)</span>
+                <input className="input" inputMode="numeric" value={perdas[t] ?? ''} onChange={e => setPerdas(p => ({...p, [t]: e.target.value}))} placeholder="0" />
+              </label>
+            ))}
+          </div>
+        )}
+        <label className="field" style={{marginTop: 12}}>
+          <span>Observação (opcional)</span>
+          <input className="input" value={obs} onChange={e => setObs(e.target.value)} />
+        </label>
+        <div className="wiz-foot" style={{marginTop: 16}}>
+          <Button variant="secondary" size="lg" label="Voltar" onClick={onClose} />
+          <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+            {erro && <span className="wiz-err">{erro}</span>}
+            <Button variant="primary" size="lg" icon="check" label={ultimo ? 'Finalizar e fechar o processo' : 'Finalizar este bag'} onClick={confirmar} />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 

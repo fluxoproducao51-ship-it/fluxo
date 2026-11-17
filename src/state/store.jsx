@@ -60,6 +60,15 @@ function reducer(state, action) {
         const bags = [...(p.bags ?? []), ...action.bags];
         return {...p, bags, usado: bags.reduce((s, e) => s + e.peso, 0)};
       });
+    case 'sairBag': {
+      // One bag finished while the machine keeps running with the others.
+      const st = mapAberto(state, action.id, p => {
+        const bags = (p.bags ?? []).filter(e => e.bag !== action.bag);
+        const lote = bags.some(e => e.lote === p.lote) ? p.lote : bags[0]?.lote ?? p.lote;
+        return {...p, bags, lote, usado: bags.reduce((s, e) => s + e.peso, 0)};
+      });
+      return {...st, apontamentos: [...st.apontamentos, action.ap]};
+    }
     case 'retirarBag':
       return mapAberto(state, action.id, p => {
         const bags = (p.bags ?? []).filter(e => e.bag !== action.bag);
@@ -267,6 +276,7 @@ export function StoreProvider({children, perfil, inicial}) {
       cancelar: id => dispatch({type: 'cancelar', id}),
       adicionarBags: (id, bags) => dispatch({type: 'adicionarBags', id, bags}),
       retirarBag: (id, bag) => dispatch({type: 'retirarBag', id, bag}),
+      sairBag: (id, bag, ap) => dispatch({type: 'sairBag', id, bag, ap}),
       finalizar: payload => dispatch({type: 'finalizar', ...payload}),
       mudarRota: (lote, rota) => dispatch({type: 'rota', lote, rota, por: state.perfil.nome}),
       misturar: payload => dispatch({type: 'misturar', ...payload}),

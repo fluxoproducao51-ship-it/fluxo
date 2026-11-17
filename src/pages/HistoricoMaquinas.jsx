@@ -57,7 +57,7 @@ export function HistoricoMaquinas({initial}) {
       g.bags.push(...(ap.bags ?? []).map(x => ({...x, lote: ap.lote, pausas: ap.pausas ?? []})));
       grupos.set(chave, g);
     }
-    return [...grupos.values()].map(g => ({...g, ap: g.aps[0], usado: g.aps.reduce((s, a) => s + (a.usado ?? 0), 0), saiu: g.aps.reduce((s, a) => s + obtidoDe(a), 0)}));
+    return [...grupos.values()].map(g => ({...g, ap: porProcesso(g.aps).find(a => (a.processo ?? a.id) === g.id) ?? g.aps[0], usado: g.aps.reduce((s, a) => s + (a.usado ?? 0), 0), saiu: g.aps.reduce((s, a) => s + obtidoDe(a), 0)}));
   }, [lista]);
   const [aberto, setAberto] = useState(null);
   // Machine time and stops belong to the process, counted once however many lots it had.

@@ -123,7 +123,7 @@ export function Relatorios() {
     let usado = 0;
     let obtido = 0;
     // A process with bags of several lots left a posting per lot: its machine hours count once.
-    const horasVistas = new Set();
+    const horasVistas = new Map();
     for (const ap of apontamentos) {
       if (!noPeriodo(ap.data)) continue;
       const e = (etapas[ap.setor] ??= {setor: ap.setor, n: 0, usado: 0, obtido: 0, quebra: 0, horas: 0});
@@ -132,8 +132,15 @@ export function Relatorios() {
       e.usado += ap.usado;
       e.obtido += obtidoDe(ap);
       e.quebra += q;
-      if (!ap.processo || !horasVistas.has(ap.processo)) e.horas += horas(ap);
-      if (ap.processo) horasVistas.add(ap.processo);
+      // The posting with the most hours covers the whole process; count only the difference.
+      if (!ap.processo) e.horas += horas(ap);
+      else {
+        const antes = horasVistas.get(ap.processo) ?? 0;
+        if (horas(ap) > antes) {
+          e.horas += horas(ap) - antes;
+          horasVistas.set(ap.processo, horas(ap));
+        }
+      }
       usado += ap.usado;
       obtido += obtidoDe(ap);
       let classificado = 0;

@@ -7,7 +7,6 @@ import {Button} from '../ui/Button.jsx';
 import {parseKg} from '../ui/Dialog.jsx';
 import {Icon} from '../ui/Icon.jsx';
 import {MaterialCode} from '../ui/MaterialCode.jsx';
-import {RotaProgresso} from '../ui/RotaEditor.jsx';
 import {Status} from '../ui/Status.jsx';
 import {pode} from '../state/perfis.js';
 import {Corpo, EASE_OUT, Passos, Rodape} from '../ui/Wizard.jsx';
@@ -38,7 +37,7 @@ function useNow(ms = 1000) {
 }
 
 const PARTES = {
-  apontar: {titulo: 'Iniciar processo', sub: 'Escolha a máquina e os bags que vão entrar. Cada bag segue a rota do seu material.'},
+  apontar: {titulo: 'Iniciar processo', sub: 'Escolha a máquina, marque os bags que vão entrar e inicie.'},
   andamento: {titulo: 'Em andamento', sub: 'O que está na máquina agora. Finalize quando o material sair ou registre uma parada.'},
   lancamentos: {titulo: 'Meus lançamentos', sub: 'Os processos que você finalizou hoje.'}
 };
@@ -65,7 +64,7 @@ export function Apontar({initial, parte, onGo}) {
         <h1 className="page-title">{PARTES[parte].titulo}</h1>
         <p className="page-sub">{PARTES[parte].sub}</p>
       </div>
-      {parte !== 'lancamentos' && (
+      {parte === 'andamento' && (
         <section className="maq-escolha">
           <p className="label">Minha máquina</p>
           <div className="seg">
@@ -86,9 +85,8 @@ export function Apontar({initial, parte, onGo}) {
         </section>
       )}
       {/* The start form stays mounted so a half-filled lot survives a look at the other screens. */}
-      <div hidden={parte !== 'apontar'} className="iniciar-area">
-        <IniciarBags key={maquina} maquina={maquina} inicial={initial?.lote} onIniciado={() => onGo('andamento')} />
-        <IniciarLegado maquina={maquina} inicial={initial?.lote} onIniciado={() => onGo('andamento')} />
+      <div hidden={parte !== 'apontar'}>
+        <IniciarBags maquina={maquina} setMaquina={setMaquina} inicial={initial?.lote} onIniciado={() => onGo('andamento')} />
       </div>
       {parte === 'andamento' &&
         (aberto ? (
@@ -329,284 +327,6 @@ function MeusLancamentos() {
           <div className="empty">Nenhum processo finalizado por você hoje.</div>
         )}
       </div>
-    </section>
-  );
-}
-
-/* ---------- Start a process ---------- */
-
-const PASSOS_INICIO = ['Lote', 'Máquina', 'Quantidade', 'Conferir'];
-
-// Lots received or started before production by bag: they finish the old way, by weight.
-function IniciarLegado({inicial, maquina, onIniciado}) {
-  const {lotes, balances} = useStore();
-  const tem = lotes.some(l => {
-    const b = balances.get(l.lote);
-    return b?.aberto && !b.porBag && b.pend > 0 && !b.processo && (!maquina || b.steps.some(s => s.setor === maquina && s.pend > 0));
-  });
-  if (!tem) return null;
-  return (
-    <div className="legado-area">
-      <p className="label">Lotes do modelo antigo, por peso</p>
-      <p className="page-sub" style={{fontSize: 13, marginBottom: 10}}>Lotes que já tinham produção lançada antes dos bags terminam do jeito antigo.</p>
-      <IniciarWizard key={maquina} inicial={inicial} maquina={maquina} onIniciado={onIniciado} />
-    </div>
-  );
-}
-
-function IniciarWizard({inicial, maquina, onIniciado}) {
-  const {lotes, balances, perfil, iniciar, notify, ativos, statusDe, abrirLote} = useStore();
-  const disponiveis = useMemo(
-    () =>
-      lotes
-        .filter(l => {
-          const b = balances.get(l.lote);
-          return b?.aberto && !b.porBag && b.pend > 0 && !b.processo && (!maquina || b.steps.some(s => s.setor === maquina && s.pend > 0));
-        })
-        .sort((a, b) => b.data.localeCompare(a.data)),
-    [lotes, balances, maquina]
-  );
-  const ocupados = useMemo(() => lotes.filter(l => !balances.get(l.lote)?.porBag && balances.get(l.lote)?.processo), [lotes, balances]);
-  const [passo, setPasso] = useState(0);
-  const [sel, setSel] = useState(null);
-  const [etapa, setEtapa] = useState(null);
-  const [usado, setUsado] = useState('');
-  const [operador, setOperador] = useState(perfil.tipo === 'producao' ? perfil.nome.toUpperCase() : '');
-  const [erro, setErro] = useState(null);
-  const lote = disponiveis.find(l => l.lote === sel);
-  const b = lote ? balances.get(lote.lote) : null;
-  const candidatas = b ? b.steps.map((s, i) => ({...s, i})).filter(s => s.pend > 0 && (!maquina || s.setor === maquina)) : [];
-
-  function escolher(id) {
-    const lb = balances.get(id);
-    setSel(id);
-    setErro(null);
-    if (!lb.rota.length) return;
-    const first = lb.steps.findIndex(s => s.pend > 0 && (!maquina || s.setor === maquina));
-    setEtapa(first);
-    setUsado(String(lb.steps[first].pend));
-    setPasso(1);
-  }
-
-  // Coming from a lot's "Apontar" button: that lot is already chosen.
-  useEffect(() => {
-    if (inicial && disponiveis.some(l => l.lote === inicial)) escolher(inicial);
-  }, []);
-
-  const avancar = () => {
-    if (passo === 1 && etapa == null) return setErro('Escolha a etapa.');
-    if (passo === 2) {
-      const q = n(usado);
-      if (!q) return setErro('Informe quanto vai entrar na máquina.');
-      if (q > b.steps[etapa].pend) return setErro(`Só há ${kg(b.steps[etapa].pend)} aguardando esta etapa.`);
-      if (!operador.trim()) return setErro('Informe o operador.');
-    }
-    setErro(null);
-    setPasso(p => p + 1);
-  };
-
-  const comecar = () => {
-    const setor = b.rota[etapa];
-    iniciar({id: `pr-${Date.now()}`, lote: lote.lote, etapa, setor, usado: n(usado), operador: operador.trim().toUpperCase()});
-    notify({
-      status: `Processo iniciado às ${new Date().toTimeString().slice(0, 5)}`,
-      title: `Lote ${lote.lote} · ${title(setor)}`,
-      detail: `${kg(n(usado))} na máquina · ${title(operador)}`,
-      icon: 'play',
-      art: {seed: lote.lote, material: materialDe(lote), tipo: lote.tipo}
-    });
-    setPasso(0);
-    setSel(null);
-    setEtapa(null);
-    onIniciado();
-  };
-
-  return (
-    <section className="panel wiz">
-      <div className="wiz-head">
-        <h2 className="section-title">Iniciar processo</h2>
-        <Passos passos={PASSOS_INICIO} atual={passo} />
-      </div>
-
-      {passo === 0 && (
-        <Corpo passo={0}>
-          <p className="wiz-q">Qual lote vai entrar na máquina?</p>
-          <div className="pick-grid">
-            {disponiveis.map(l => {
-              const lb = balances.get(l.lote);
-              const semRota = !lb.rota.length;
-              // Weight per machine: the lot's total would read as if it all sat at one machine.
-              const filas = lb.steps.filter(s => s.setor && s.pend > 0 && (!maquina || s.setor === maquina));
-              const naFila = semRota ? lb.pend : filas.reduce((soma, s) => soma + s.pend, 0);
-              return (
-                <button
-                  key={l.lote}
-                  type="button"
-                  className={`pick ${sel === l.lote ? 'on' : ''} ${semRota ? 'blocked' : ''}`}
-                  onClick={() => (semRota ? setSel(l.lote) : escolher(l.lote))}
-                >
-                  <span className="pick-thumb">
-                    <MaterialCode material={materialDe(l)} tipo={l.tipo} />
-                  </span>
-                  <span style={{minWidth: 0, flex: 1}}>
-                    <span className="pick-title">{l.lote}</span>
-                    <span className="pick-sub">
-                      {title(materialDe(l))} · {title(l.cliente)}
-                    </span>
-                    <span className="pick-meta pick-filas">
-                      {semRota ? (
-                        <span style={{color: 'var(--ready)'}}>Sem rota definida</span>
-                      ) : (
-                        filas.map((s, i) => (
-                          <span key={i} className="pick-fila">
-                            {title(s.setor)} <b>{kg(s.pend)}</b>
-                          </span>
-                        ))
-                      )}
-                    </span>
-                  </span>
-                  <span className="pick-kg">
-                    <small>{filas.length > 1 ? 'Total aguardando' : 'Aguardando'}</small>
-                    {kg(naFila)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {!disponiveis.length && (
-            <div className="empty">{maquina ? `Nenhum lote aguardando ${title(maquina)} agora.` : 'Nenhum lote com material aguardando.'}</div>
-          )}
-          {lote && !b.rota.length && (
-            <div className="wiz-alert">
-              <Icon name="alert" size={16} />
-              <span>
-                O lote {lote.lote} não tem rota de máquinas.{' '}
-                {pode(perfil, 'editarRota') ? (
-                  <button type="button" className="trail-link" onClick={() => abrirLote(lote.lote)}>
-                    Definir rota do lote
-                  </button>
-                ) : (
-                  'Avise o PCP para definir a rota.'
-                )}
-              </span>
-            </div>
-          )}
-          {ocupados.length > 0 && (
-            <p className="wiz-note">
-              {ocupados.map(l => l.lote).join(', ')} {ocupados.length === 1 ? 'está' : 'estão'} em máquina agora e{' '}
-              {ocupados.length === 1 ? 'volta' : 'voltam'} para esta lista depois de finalizar.
-            </p>
-          )}
-        </Corpo>
-      )}
-
-      {passo === 1 && b && (
-        <Corpo passo={1}>
-          <p className="wiz-q">
-            Lote {lote.lote}: {candidatas.length > 1 ? 'qual etapa?' : 'próxima máquina da rota'}
-          </p>
-          <RotaProgresso b={b} />
-          <div className="machine-grid">
-            {candidatas.map(c => (
-              <button
-                key={c.i}
-                type="button"
-                className={`machine ${etapa === c.i ? 'on' : ''}`}
-                onClick={() => {
-                  setEtapa(c.i);
-                  setUsado(String(c.pend));
-                }}
-              >
-                <span className="machine-step">
-                  Etapa {c.i + 1} de {b.rota.length}
-                </span>
-                <span className="machine-name">{title(c.setor)}</span>
-                <span className="machine-kg">{kg(c.pend)} aguardando</span>
-                {etapa === c.i && (
-                  <span className="machine-check">
-                    <Icon name="check" size={16} stroke={3} />
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          <p className="wiz-note">
-            <Icon name="alert" size={13} /> A ordem das máquinas segue a rota do lote. Só o PCP ou o gerente pode mudar a rota.
-          </p>
-        </Corpo>
-      )}
-
-      {passo === 2 && b && (
-        <Corpo passo={2}>
-          <p className="wiz-q">Quanto vai entrar na {title(b.rota[etapa])}?</p>
-          <div style={{position: 'relative', maxWidth: 420}}>
-            <input className="input scale-input" inputMode="numeric" value={usado} onChange={e => setUsado(e.target.value)} autoFocus />
-            <span className="scale-unit">kg</span>
-          </div>
-          <p className="wiz-note">
-            Aguardando nesta etapa: <b>{kg(b.steps[etapa].pend)}</b>. Se usar só uma parte, o resto continua na fila.
-          </p>
-          <label className="field" style={{maxWidth: 420, marginTop: 16}}>
-            <span>Operador</span>
-            {perfil.tipo === 'producao' ? (
-              <input className="input" value={title(operador)} readOnly aria-readonly="true" />
-            ) : (
-              <select className="input" value={operador} onChange={e => setOperador(e.target.value)}>
-                <option value="">Selecione</option>
-                {[...new Set([...ativos('operadores'), perfil.nome.toUpperCase()])].map(o => (
-                  <option key={o} value={o}>
-                    {title(o)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-        </Corpo>
-      )}
-
-      {passo === 3 && b && (
-        <Corpo passo={3}>
-          <p className="wiz-q">Confira antes de iniciar</p>
-          <div className="review">
-            <div>
-              <span>Lote</span>
-              <b>{lote.lote}</b>
-              <small>
-                {title(materialDe(lote))} · <Status value={statusDe(lote)} short />
-              </small>
-            </div>
-            <div>
-              <span>Máquina</span>
-              <b>{title(b.rota[etapa])}</b>
-              <small>
-                Etapa {etapa + 1} de {b.rota.length}
-              </small>
-            </div>
-            <div>
-              <span>Entra na máquina</span>
-              <b>{kg(n(usado))}</b>
-              <small>fica na fila: {kg(b.steps[etapa].pend - n(usado))}</small>
-            </div>
-            <div>
-              <span>Operador · início</span>
-              <b>{title(operador)}</b>
-              <small>agora, {new Date().toTimeString().slice(0, 5)}</small>
-            </div>
-          </div>
-        </Corpo>
-      )}
-
-      <Rodape
-        passo={passo}
-        erro={erro}
-        onVoltar={() => {
-          setErro(null);
-          setPasso(p => p - 1);
-        }}
-        onAvancar={passo === 0 ? null : passo === 3 ? comecar : avancar}
-        avancarLabel={passo === 3 ? 'Iniciar agora' : 'Avançar'}
-        final={passo === 3}
-      />
     </section>
   );
 }

@@ -120,15 +120,16 @@ export function processoDoLote(proc, lote, rota) {
 
 export const abertosDoLote = (abertos, lote, rota) => abertos.map(p => processoDoLote(p, lote, rota)).filter(Boolean);
 
-// Machine hours counted once per process, even when it produced a posting for each of its lots.
+// Machine hours counted once per process, even when it left several postings (one per lot, or one
+// per bag finished early). The latest of them covers the whole running time and every stop.
 export function porProcesso(aps) {
-  const vistos = new Set();
-  return aps.filter(a => {
-    if (!a.processo) return true;
-    if (vistos.has(a.processo)) return false;
-    vistos.add(a.processo);
-    return true;
-  });
+  const melhor = new Map();
+  const soltos = [];
+  for (const a of aps) {
+    if (!a.processo) soltos.push(a);
+    else if (!melhor.has(a.processo) || (a.horas ?? 0) > (melhor.get(a.processo).horas ?? 0)) melhor.set(a.processo, a);
+  }
+  return [...soltos, ...melhor.values()];
 }
 
 export const rotuloDoBag = (bag, nome = 'Bag') => `${nome} ${bag.n} · lote ${bag.lote}`;
