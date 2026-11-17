@@ -444,19 +444,104 @@ export function BagsDoProcesso({proc, podeMexer}) {
   );
 }
 
+// Each separated material becomes a new lot with one bag, linked to the lot it came from. `restante`
+// is the rest of the route, which a child may follow instead of going to stock.
+function lotesFilhos({itens, lote, proc, restante, usados, apontamento}) {
+  const filhos = [];
+  const separacao = itens.map(it => {
+    let code = `${lote.lote}-${slug(it.material)}`;
+    for (let j = 2; usados.has(code); j++) code = `${lote.lote}-${slug(it.material)}${j}`;
+    usados.add(code);
+    const segue = it.destino === 'rota' && restante.length > 0;
+    filhos.push({
+      lote: code,
+      data: localDate(proc.inicio),
+      cliente: lote.cliente,
+      materiais: [it.material],
+      nf: null,
+      compra: lote.compra,
+      tipo: lote.tipo,
+      embalagem: lote.embalagem,
+      cor: lote.cor,
+      conferente: proc.operador,
+      bags: [n(it.peso)],
+      bagsMateriais: [it.material],
+      pesoEntrada: n(it.peso),
+      pesoNF: null,
+      status: null,
+      inicial: segue ? 'pendente' : 'estoque',
+      rota: segue ? restante : [],
+      rotaLog: [],
+      galpao: lote.galpao,
+      origem: {tipo: 'separacao', pai: lote.lote, apontamento}
+    });
+    return {material: it.material, peso: n(it.peso), lote: code, destino: segue ? 'rota' : 'estoque'};
+  });
+  return {filhos, separacao};
+}
+
+const ITEM_VAZIO = {material: '', peso: '', destino: 'estoque'};
+
+// The materials a machine split a load into, each with its weight and where it goes next.
+function ItensSeparacao({itens, setItens, proxima, lote}) {
+  const {ativos} = useStore();
+  const opcoesMaterial = ativos('materiais');
+  const setItem = (i, key, v) => setItens(list => list.map((it, j) => (j === i ? {...it, [key]: v} : it)));
+  return (
+    <div className="split-rows" style={{marginTop: 0}}>
+      {itens.map((it, i) => (
+        <div key={i} className="split-row">
+          <select className="input" value={it.material} onChange={e => setItem(i, 'material', e.target.value)}>
+            <option value="">Material</option>
+            {opcoesMaterial.map(m => (
+              <option key={m} value={m}>
+                {title(m)}
+              </option>
+            ))}
+          </select>
+          <input className="input" inputMode="numeric" placeholder="kg" value={it.peso} onChange={e => setItem(i, 'peso', e.target.value)} />
+          <select className="input" value={it.destino} onChange={e => setItem(i, 'destino', e.target.value)}>
+            <option value="estoque">Vai para o estoque</option>
+            {proxima && <option value="rota">Segue para {title(proxima)}</option>}
+          </select>
+          <Button variant="ghost" className="icon" icon="x" aria-label="Remover" disabled={itens.length === 1} onClick={() => setItens(list => list.filter((_, j) => j !== i))} />
+        </div>
+      ))}
+      <div>
+        <Button variant="secondary" size="sm" icon="plus" label="Adicionar material" onClick={() => setItens(list => [...list, {...ITEM_VAZIO}])} />
+      </div>
+      <p className="wiz-note">Cada material vira um lote filho com um bag, ligado ao lote {lote}.</p>
+    </div>
+  );
+}
+
+function ChaveSeparou({ligada, onChange}) {
+  return (
+    <label className="toggle" style={{marginBottom: 16}}>
+      <input type="checkbox" checked={ligada} onChange={e => onChange(e.target.checked)} />
+      <span className="toggle-track">
+        <span className="toggle-thumb" />
+      </span>
+      A máquina separou o material em outros tipos
+    </label>
+  );
+}
+
 // One bag leaves the machine with its own weight; the others keep running. The last one closes the process.
 function FinalizarUmBag({proc, entrada, onClose}) {
-  const {loteDe, balances, ativos, sairBag, finalizar, notify} = useStore();
+  const {loteDe, balances, ativos, sairBag, finalizar, notify, lotes} = useStore();
   const lote = loteDe(entrada.lote);
   const rota = lote ? rotaDoBag(lote, entrada.i) : [];
   const proxima = rota[entrada.etapa + 1] ?? null;
   const tiposPerda = ativos('tiposPerda');
   const [saida, setSaida] = useState('');
+  const [separa, setSepara] = useState(false);
+  const [itens, setItens] = useState([{...ITEM_VAZIO}]);
   const [perdas, setPerdas] = useState({});
   const [obs, setObs] = useState('');
   const [erro, setErro] = useState(null);
   const ultimo = proc.bags.length === 1;
-  const saiu = n(saida);
+  const saiu = separa ? itens.reduce((s, it) => s + n(it.peso), 0) : n(saida);
   const quebra = saiu ? Math.max(0, entrada.peso - saiu) : 0;
   const somaPerdas = tiposPerda.reduce((s, t) => s + n(perdas[t]), 0);
   useEffect(() => {
@@ -465,12 +550,17 @@ function FinalizarUmBag({proc, entrada, onClose}) {
     return () => document.removeEventListener('keydown', key);
   }, []);
   const confirmar = () => {
+    if (separa && itens.some(it => !it.material || !n(it.peso))) return setErro('Complete material e peso de cada separação.');
     if (!saiu) return setErro('Informe o peso de saída do bag.');
     if (saiu > entrada.peso) return setErro(`Saiu mais do que entrou (${kg(entrada.peso)}).`);
     if (somaPerdas > quebra) return setErro(`As perdas somam ${kg(somaPerdas)}, mas a quebra foi de ${kg(quebra)}.`);
     const fim = agoraISO();
+    const id = `ap-${Date.now()}`;
+    const {filhos, separacao} = separa
+      ? lotesFilhos({itens, lote, proc, restante: rota.slice(entrada.etapa + 1), usados: new Set(lotes.map(l => l.lote)), apontamento: id})
+      : {filhos: [], separacao: undefined};
     const ap = {
-      id: `ap-${Date.now()}`,
+      id,
       lote: entrada.lote,
       etapa: Math.max(0, (balances.get(entrada.lote)?.rota ?? []).indexOf(proc.setor)),
       setor: proc.setor,
@@ -481,7 +571,8 @@ function FinalizarUmBag({proc, entrada, onClose}) {
       horas: horasLiquidas(proc),
       pausas: proc.pausas.map(p => ({...p, fim: p.fim ?? fim})),
       usado: entrada.peso,
-      obtido: saiu,
+      obtido: separa ? undefined : saiu,
+      separacao,
       perdas: quebra ? Object.fromEntries(tiposPerda.filter(t => n(perdas[t]) > 0).map(t => [t, n(perdas[t])])) : {},
       operador: proc.operador,
       obs: obs.trim(),
@@ -494,20 +585,22 @@ function FinalizarUmBag({proc, entrada, onClose}) {
           material: entrada.material,
           etapa: entrada.etapa,
           pesoEntrada: entrada.peso,
-          pesoSaida: saiu,
+          pesoSaida: separa ? null : saiu,
           entrada: entrada.entrada,
           saida: fim,
           operador: entrada.operador,
-          destino: proxima ? 'proxima' : 'estoque'
+          destino: separa ? 'separado' : proxima ? 'proxima' : 'estoque'
         }
       ]
     };
-    if (ultimo) finalizar({id: proc.id, filhos: [], aps: [ap]});
-    else sairBag(proc.id, entrada.bag, ap);
+    if (ultimo) finalizar({id: proc.id, filhos, aps: [ap]});
+    else sairBag(proc.id, entrada.bag, ap, filhos);
     notify({
       status: ultimo ? `${title(proc.setor)} finalizada` : 'Bag finalizado · máquina segue rodando',
       title: `Bag ${entrada.n} · lote ${entrada.lote}`,
-      detail: `${kg(entrada.peso)} → ${kg(saiu)} · ${proxima ? `segue para ${title(proxima)}` : 'vai para o estoque'}`,
+      detail: separa
+        ? `Separado em ${filhos.length} ${filhos.length === 1 ? 'lote' : 'lotes'}: ${filhos.map(f => f.lote).join(', ')}`
+        : `${kg(entrada.peso)} → ${kg(saiu)} · ${proxima ? `segue para ${title(proxima)}` : 'vai para o estoque'}`,
       icon: 'check'
     });
     onClose();
@@ -525,25 +618,37 @@ function FinalizarUmBag({proc, entrada, onClose}) {
         <p className="page-sub">
           Entrou {localTime(entrada.entrada)} com {kg(entrada.peso)} · {title(entrada.material)} · {hours(tempoNaMaquina(entrada.entrada, null, proc.pausas))} na máquina
         </p>
-        <label className="field" style={{marginTop: 14, maxWidth: 360}}>
-          <span>Peso de saída</span>
-          <div style={{position: 'relative'}}>
-            <input className="input scale-input" inputMode="numeric" value={saida} onChange={e => setSaida(e.target.value)} placeholder="0" autoFocus onKeyDown={e => e.key === 'Enter' && confirmar()} />
-            <span className="scale-unit">kg</span>
-          </div>
-        </label>
-        <p className="wiz-note">
-          Depois daqui o bag {proxima ? (
-            <>
-              segue para <b>{title(proxima)}</b>
-            </>
-          ) : (
-            <>
-              vai para o <b>estoque</b>
-            </>
-          )}
-          .{quebra > 0 ? ` Quebra de ${kg(quebra)}.` : ''}
-        </p>
+        <div style={{marginTop: 14}}>
+          <ChaveSeparou ligada={separa} onChange={setSepara} />
+        </div>
+        {separa ? (
+          <>
+            <ItensSeparacao itens={itens} setItens={setItens} proxima={proxima} lote={entrada.lote} />
+            {quebra > 0 && <p className="wiz-note">Quebra de {kg(quebra)}.</p>}
+          </>
+        ) : (
+          <>
+            <label className="field" style={{maxWidth: 360}}>
+              <span>Peso de saída</span>
+              <div style={{position: 'relative'}}>
+                <input className="input scale-input" inputMode="numeric" value={saida} onChange={e => setSaida(e.target.value)} placeholder="0" autoFocus onKeyDown={e => e.key === 'Enter' && confirmar()} />
+                <span className="scale-unit">kg</span>
+              </div>
+            </label>
+            <p className="wiz-note">
+              Depois daqui o bag {proxima ? (
+                <>
+                  segue para <b>{title(proxima)}</b>
+                </>
+              ) : (
+                <>
+                  vai para o <b>estoque</b>
+                </>
+              )}
+              .{quebra > 0 ? ` Quebra de ${kg(quebra)}.` : ''}
+            </p>
+          </>
+        )}
         {quebra > 0 && tiposPerda.length > 0 && (
           <div className="fields perdas-campos" style={{marginTop: 8}}>
             {tiposPerda.map(t => (
@@ -644,7 +749,7 @@ export function FinalizarBags({proc, onClose}) {
   const [passo, setPasso] = useState(0);
   const [saidas, setSaidas] = useState({});
   const [separa, setSepara] = useState(false);
-  const [itens, setItens] = useState([{material: '', peso: '', destino: 'estoque'}]);
+  const [itens, setItens] = useState([{...ITEM_VAZIO}]);
   const tiposPerda = ativos('tiposPerda');
   const [perdas, setPerdas] = useState({});
   const [obs, setObs] = useState('');
@@ -667,8 +772,6 @@ export function FinalizarBags({proc, onClose}) {
   const somaPerdas = tiposPerda.reduce((s, t) => s + n(perdas[t]), 0);
   const tempo = horasLiquidas(proc, agora);
   const proximaComum = linhas.every(x => x.proxima === linhas[0].proxima) ? linhas[0].proxima : null;
-  const setItem = (i, key, v) => setItens(list => list.map((it, j) => (j === i ? {...it, [key]: v} : it)));
-
   const avancar = () => {
     if (passo === 0) {
       if (separa) {
@@ -714,38 +817,9 @@ export function FinalizarBags({proc, onClose}) {
       const obtido = separa ? null : bags.reduce((s, x) => s + x.pesoSaida, 0);
       let separacao;
       if (separa) {
-        // Each separated material becomes a new lot with one bag, linked to this one.
-        const restante = minhas[0].rota.slice(minhas[0].etapa + 1);
-        separacao = itens.map(it => {
-          let code = `${loteId}-${slug(it.material)}`;
-          for (let j = 2; usados.has(code); j++) code = `${loteId}-${slug(it.material)}${j}`;
-          usados.add(code);
-          const segue = it.destino === 'rota' && restante.length > 0;
-          const rotaFilho = segue ? restante : [];
-          filhos.push({
-            lote: code,
-            data: localDate(proc.inicio),
-            cliente: lote.cliente,
-            materiais: [it.material],
-            nf: null,
-            compra: lote.compra,
-            tipo: lote.tipo,
-            embalagem: lote.embalagem,
-            cor: lote.cor,
-            conferente: proc.operador,
-            bags: [n(it.peso)],
-            bagsMateriais: [it.material],
-            pesoEntrada: n(it.peso),
-            pesoNF: null,
-            status: null,
-            inicial: segue ? 'pendente' : 'estoque',
-            rota: rotaFilho,
-            rotaLog: [],
-            galpao: lote.galpao,
-            origem: {tipo: 'separacao', pai: loteId, apontamento: id}
-          });
-          return {material: it.material, peso: n(it.peso), lote: code, destino: segue ? 'rota' : 'estoque'};
-        });
+        const feito = lotesFilhos({itens, lote, proc, restante: minhas[0].rota.slice(minhas[0].etapa + 1), usados, apontamento: id});
+        filhos.push(...feito.filhos);
+        separacao = feito.separacao;
       }
       const saiuLote = separa ? nosFilhos : obtido;
       // Classified losses are shared among the lots in proportion to what each one lost.
@@ -786,7 +860,6 @@ export function FinalizarBags({proc, onClose}) {
     onClose();
   };
 
-  const opcoesMaterial = ativos('materiais');
   return (
     <motion.section className="panel wiz finishing" initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} transition={{duration: 0.3, ease: EASE_OUT}}>
       <div className="wiz-head">
@@ -804,40 +877,9 @@ export function FinalizarBags({proc, onClose}) {
       {passo === 0 && (
         <Corpo passo={0}>
           <p className="wiz-q">{separa ? 'Em quais materiais a máquina separou?' : 'Quanto pesou cada bag na saída?'}</p>
-          {umLote && (
-            <label className="toggle" style={{marginBottom: 16}}>
-              <input type="checkbox" checked={separa} onChange={e => setSepara(e.target.checked)} />
-              <span className="toggle-track">
-                <span className="toggle-thumb" />
-              </span>
-              A máquina separou o material em outros tipos
-            </label>
-          )}
+          {umLote && <ChaveSeparou ligada={separa} onChange={setSepara} />}
           {separa ? (
-            <div className="split-rows" style={{marginTop: 0}}>
-              {itens.map((it, i) => (
-                <div key={i} className="split-row">
-                  <select className="input" value={it.material} onChange={e => setItem(i, 'material', e.target.value)}>
-                    <option value="">Material</option>
-                    {opcoesMaterial.map(m => (
-                      <option key={m} value={m}>
-                        {title(m)}
-                      </option>
-                    ))}
-                  </select>
-                  <input className="input" inputMode="numeric" placeholder="kg" value={it.peso} onChange={e => setItem(i, 'peso', e.target.value)} />
-                  <select className="input" value={it.destino} onChange={e => setItem(i, 'destino', e.target.value)}>
-                    <option value="estoque">Vai para o estoque</option>
-                    {linhas[0].proxima && <option value="rota">Segue para {title(linhas[0].proxima)}</option>}
-                  </select>
-                  <Button variant="ghost" className="icon" icon="x" aria-label="Remover" disabled={itens.length === 1} onClick={() => setItens(list => list.filter((_, j) => j !== i))} />
-                </div>
-              ))}
-              <div>
-                <Button variant="secondary" size="sm" icon="plus" label="Adicionar material" onClick={() => setItens(list => [...list, {material: '', peso: '', destino: 'estoque'}])} />
-              </div>
-              <p className="wiz-note">Cada material vira um lote filho com um bag, ligado ao lote {lotesDoProcesso[0]}.</p>
-            </div>
+            <ItensSeparacao itens={itens} setItens={setItens} proxima={linhas[0].proxima} lote={lotesDoProcesso[0]} />
           ) : (
             <div className="saida-bags">
               <div className="saida-bag saida-topo">

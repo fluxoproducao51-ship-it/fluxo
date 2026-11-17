@@ -228,7 +228,7 @@ function NoDevolucao({data}) {
 function ArestaFluxo({id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data}) {
   const ed = useContext(Edicao);
   const [path, x, y] = getBezierPath({sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition});
-  const marcado = ed?.alvo === data.inserir && data.inserir != null;
+  const marcado = !data.inserirLote && ed?.alvo === data.inserir && data.inserir != null;
   return (
     <>
       <BaseEdge id={id} path={path} className={`aresta ${data.estado} ${data.fluxo === 'segue' ? 'fluxo-futuro' : data.fluxo ? 'fluxo' : 'apagada'}`} />
@@ -238,9 +238,9 @@ function ArestaFluxo({id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
             type="button"
             className={`aresta-mais nodrag nopan ${marcado ? 'on' : ''}`}
             style={{transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`}}
-            title="Inserir máquina aqui"
-            aria-label="Inserir máquina aqui"
-            onClick={() => ed.marcarAlvo(data.inserir)}
+            title={data.inserirLote ? `Inserir máquina no lote ${data.inserirLote}` : 'Inserir máquina aqui'}
+            aria-label={data.inserirLote ? `Inserir máquina no lote ${data.inserirLote}` : 'Inserir máquina aqui'}
+            onClick={() => (data.inserirLote ? ed.inserirEm(data.inserirLote, data.inserir) : ed.marcarAlvo(data.inserir))}
           >
             <Icon name="plus" size={12} stroke={2.6} />
           </button>
@@ -697,8 +697,8 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
   const editavel = pode(perfil, 'editarRota') && b.pend + b.maquina > 0 && !b.rotasMistas;
 
   const mapa = useMemo(
-    () => construirMapa({foco, rotaFoco: rota, lotes, balances, misturas, abertos, editavel, expandidos}),
-    [foco, rota, lotes, balances, misturas, abertos, editavel, expandidos]
+    () => construirMapa({foco, rotaFoco: rota, lotes, balances, misturas, abertos, editavel, podeEditar: pode(perfil, 'editarRota'), expandidos}),
+    [foco, rota, lotes, balances, misturas, abertos, editavel, perfil, expandidos]
   );
   const [nodes, setNodes, onNodesChange] = useNodesState(mapa.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(mapa.edges);
@@ -748,11 +748,15 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
       observador.disconnect();
     };
   }, []);
+  // A "+" on another lot's path opens that lot with the machine list on that spot.
+  const aoAbrir = useRef(null);
   useEffect(() => {
+    const pedido = aoAbrir.current?.lote === foco ? aoAbrir.current : null;
+    aoAbrir.current = null;
     setRascunho(null);
-    setAlvo(null);
+    setAlvo(pedido ? pedido.pos : null);
     setSelecionado(null);
-    setPaleta(false);
+    setPaleta(Boolean(pedido));
   }, [foco]);
 
   const aplicar = proxima => {
@@ -769,11 +773,22 @@ function Canvas({foco, onFoco, expandidos, onAlternar}) {
   const remover = i => aplicar(rota.filter((_, j) => j !== i));
 
   const edicao = useMemo(
-    () => ({remover, abrirFilhos: onAlternar, alvo, marcarAlvo: k => {
+    () => ({
+      remover,
+      abrirFilhos: onAlternar,
+      alvo,
+      marcarAlvo: k => {
         setAlvo(a => (a === k ? null : k));
         setPaleta(true);
-      }}),
-    [rota, alvo, onAlternar]
+      },
+      inserirEm: (outro, pos) => {
+        aoAbrir.current = {lote: outro, pos};
+        onFoco(outro, Boolean(mudou));
+        // Staying on this lot (unsaved route kept) drops the request.
+        setTimeout(() => (aoAbrir.current = null), 500);
+      }
+    }),
+    [rota, alvo, onAlternar, onFoco, mudou]
   );
 
   // Drawing a wire: the target machine moves to right after the source. A wire to the stock

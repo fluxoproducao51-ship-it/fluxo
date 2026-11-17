@@ -118,7 +118,7 @@ export function etapasDe(rota, b, procsDoLote) {
 
 const FLUI = {feita: true, andamento: true, parado: true, fila: true};
 
-export function construirMapa({foco, rotaFoco, lotes, balances, misturas, abertos, editavel, expandidos}) {
+export function construirMapa({foco, rotaFoco, lotes, balances, misturas, abertos, editavel, podeEditar = false, expandidos}) {
   const ctx = {lotes, balances, misturas};
   const {lotes: familia, filhos, porIdTodos, cortes} = visiveis(foco, expandidos, ctx);
   const noFamilia = new Set(familia.map(l => l.lote));
@@ -178,9 +178,14 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
     const devolve = b.devolvido > 0 && !cortes.has(l.lote);
     lane += ocultosDe(l).length || devolve ? 2 : 1;
     const rota = passos(l);
-    const travadas = eFoco ? etapasTravadas(b) : 0;
     const {lista} = etapasDe(rota, b, abertosDoLote(abertos, l.lote, rota));
     const emEdicao = eFoco && editavel;
+    // Another lot on the drawing (a child still being processed) gets the same "+" points: using
+    // one opens that lot with the machine list ready.
+    const outroEditavel = !eFoco && podeEditar && !cortes.has(l.lote) && b.pend + b.maquina > 0 && !b.rotasMistas && rotaDe(l).length > 0;
+    const travadas = eFoco || outroEditavel ? etapasTravadas(b) : 0;
+    const maisAqui = emEdicao || outroEditavel;
+    const inserirLote = outroEditavel ? l.lote : null;
 
     nodes.push({
       id: noEntrada(l.lote),
@@ -215,11 +220,11 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
         type: 'etapa',
         position: {x: (col + 1 + i) * COL, y},
         connectable: emEdicao,
-        data: {...e, lote: l.lote, foco: eFoco, n: i + 1, total: rota.length, travada: i < travadas, emEdicao, semRota: e.setor == null}
+        data: {...e, lote: l.lote, foco: eFoco, n: i + 1, total: rota.length, travada: emEdicao && i < travadas, emEdicao, semRota: e.setor == null}
       });
       edge(anterior, id, {
         selectable: false,
-        data: {estado: e.estado === 'parado' ? 'parada' : FLUI[e.estado] ? (e.estado === 'feita' ? 'feita' : 'ativa') : 'futura', inserir: emEdicao && i >= travadas ? i : null, foco: eFoco}
+        data: {estado: e.estado === 'parado' ? 'parada' : FLUI[e.estado] ? (e.estado === 'feita' ? 'feita' : 'ativa') : 'futura', inserir: maisAqui && i >= travadas ? i : null, inserirLote, foco: eFoco}
       });
       anterior = id;
       anteriorEstado = e.estado;
@@ -239,7 +244,7 @@ export function construirMapa({foco, rotaFoco, lotes, balances, misturas, aberto
       });
       edge(anterior, id, {
         selectable: false,
-        data: {estado: pronto || corte ? 'feita' : 'futura', inserir: emEdicao ? rota.length : null, foco: eFoco}
+        data: {estado: pronto || corte ? 'feita' : 'futura', inserir: maisAqui ? rota.length : null, inserirLote, foco: eFoco}
       });
       if (b.enviado > 0 && !corte) {
         nodes.push({

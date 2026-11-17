@@ -67,7 +67,13 @@ function reducer(state, action) {
         const lote = bags.some(e => e.lote === p.lote) ? p.lote : bags[0]?.lote ?? p.lote;
         return {...p, bags, lote, usado: bags.reduce((s, e) => s + e.peso, 0)};
       });
-      return {...st, apontamentos: [...st.apontamentos, action.ap]};
+      const filhos = action.filhos ?? [];
+      return {
+        ...st,
+        apontamentos: [...st.apontamentos, action.ap],
+        lotes: filhos.length ? [...st.lotes, ...filhos] : st.lotes,
+        cadastros: filhos.length ? remember(st.cadastros, {materiais: filhos.flatMap(f => f.materiais)}) : st.cadastros
+      };
     }
     case 'retirarBag':
       return mapAberto(state, action.id, p => {
@@ -276,7 +282,7 @@ export function StoreProvider({children, perfil, inicial}) {
       cancelar: id => dispatch({type: 'cancelar', id}),
       adicionarBags: (id, bags) => dispatch({type: 'adicionarBags', id, bags}),
       retirarBag: (id, bag) => dispatch({type: 'retirarBag', id, bag}),
-      sairBag: (id, bag, ap) => dispatch({type: 'sairBag', id, bag, ap}),
+      sairBag: (id, bag, ap, filhos = []) => dispatch({type: 'sairBag', id, bag, ap, filhos}),
       finalizar: payload => dispatch({type: 'finalizar', ...payload}),
       mudarRota: (lote, rota) => dispatch({type: 'rota', lote, rota, por: state.perfil.nome}),
       misturar: payload => dispatch({type: 'misturar', ...payload}),
