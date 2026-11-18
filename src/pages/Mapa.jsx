@@ -565,10 +565,10 @@ function DadosDoLote({lote, b, onFechar}) {
       ? [
           [
             'Bags agora',
-            ['maquina', 'fila', 'estoque']
+            ['maquina', 'fila', 'estoque', 'juntado']
               .map(st => [st, b.bags.filter(x => x.status === st).length])
               .filter(([, q]) => q)
-              .map(([st, q]) => `${q} ${st === 'maquina' ? 'em máquina' : st === 'fila' ? 'na fila' : 'em estoque'}`)
+              .map(([st, q]) => `${q} ${{maquina: 'em máquina', fila: 'na fila', estoque: 'em estoque', juntado: q === 1 ? 'juntado aos outros' : 'juntados aos outros'}[st]}`)
               .join(' · ') || '—'
           ]
         ]

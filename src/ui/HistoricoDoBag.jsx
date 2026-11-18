@@ -16,6 +16,7 @@ export function situacaoDoBag(bag) {
   if (bag.status === 'fila') return bag.setor ? `Aguardando ${title(bag.setor)}` : 'Aguardando rota do PCP';
   if (bag.status === 'estoque') return 'Em estoque';
   if (bag.status === 'separado') return 'Separado em lotes filhos';
+  if (bag.status === 'juntado') return 'Saiu vazio · juntado aos outros bags';
   if (bag.status === 'devolvido') return 'Devolvido ao cliente';
   return '';
 }
@@ -99,8 +100,8 @@ export function HistoricoDoBag({lote: id, i}) {
                   Entrou {quando(p.entrada)} · saiu {quando(p.saida)} · {hours(tempoNaMaquina(p.entrada, p.saida, p.pausas))} na máquina
                 </span>
                 <span>
-                  {kg(p.pesoEntrada)} → {p.pesoSaida != null ? kg(p.pesoSaida) : 'separado'}
-                  {perdeu > 0 ? ` · quebra ${kg(perdeu)}` : ''}
+                  {kg(p.pesoEntrada)} → {p.destino === 'juntado' ? 'vazio, juntado aos outros bags do processo' : p.pesoSaida != null ? kg(p.pesoSaida) : 'separado'}
+                  {perdeu > 0 && p.destino !== 'juntado' ? ` · quebra ${kg(perdeu)}` : perdeu < 0 ? ` · ganhou ${kg(-perdeu)} dos outros bags` : ''}
                 </span>
                 <span>
                   Colocado por {title(p.operador) || '—'}

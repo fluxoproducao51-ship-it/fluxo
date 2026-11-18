@@ -272,7 +272,7 @@ export function HistoricoMaquinas({initial}) {
                                   <span>{quando(x.saida)}</span>
                                   <span className="n">{hours(tempoNaMaquina(x.entrada, x.saida, x.pausas))}</span>
                                   <span className="n">{kg(x.pesoEntrada)}</span>
-                                  <span className="n">{x.pesoSaida != null ? kg(x.pesoSaida) : 'separado'}</span>
+                                  <span className="n">{x.destino === 'juntado' ? 'vazio' : x.pesoSaida != null ? kg(x.pesoSaida) : 'separado'}</span>
                                   <span>{title(x.operador) || '—'}</span>
                                 </div>
                               ))}

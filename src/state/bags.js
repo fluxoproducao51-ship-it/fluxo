@@ -44,7 +44,7 @@ export function tempoNaMaquina(entrada, saida, pausas = [], agora = Date.now()) 
 }
 
 // Where every bag of every bag-model lot is right now, with its history.
-// status: fila (waiting for `setor`), maquina (inside `setor`), estoque, separado, devolvido.
+// status: fila (waiting for `setor`), maquina (inside `setor`), estoque, separado, juntado, devolvido.
 export function estadoDosBags({lotes, apontamentos, abertos, devolucoes = []}) {
   const legados = lotesLegados({apontamentos, abertos});
   const passagens = new Map();
@@ -75,6 +75,8 @@ export function estadoDosBags({lotes, apontamentos, abertos, devolucoes = []}) {
       let status;
       if (devolucao && !hist.length && !dentro) status = 'devolvido';
       else if (ultimo?.destino === 'separado') status = 'separado';
+      // Came out of the machine empty: its material went into the other bags of that process.
+      else if (ultimo?.destino === 'juntado') status = 'juntado';
       else if (dentro) status = 'maquina';
       else if (semRota || etapa < bag.rota.length) status = 'fila';
       else status = 'estoque';

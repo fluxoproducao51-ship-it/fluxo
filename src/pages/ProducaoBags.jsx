@@ -779,10 +779,12 @@ export function FinalizarBags({proc, onClose}) {
         if (nosFilhos > entrou) return setErro(`Saiu mais do que entrou (${kg(entrou)}).`);
       } else {
         const nomeBag = x => (umLote ? `${x.n}` : `${x.n} do lote ${x.lote}`);
-        const falta = linhas.filter(x => !n(x.saida)).map(nomeBag);
-        if (falta.length) return setErro(`Informe o peso de saída ${falta.length === 1 ? 'do bag' : 'dos bags'} ${falta.join(', ')}.`);
-        const demais = linhas.find(x => n(x.saida) > x.peso);
-        if (demais) return setErro(`O bag ${nomeBag(demais)} saiu com mais peso do que entrou (${kg(demais.peso)}).`);
+        // Inside the machine the bags mix: one may come out heavier than it went in, and another
+        // empty (0 kg) because its material ended up in the others. Only the total has to add up.
+        const falta = linhas.filter(x => String(x.saida).trim() === '').map(nomeBag);
+        if (falta.length) return setErro(`Informe o peso de saída ${falta.length === 1 ? 'do bag' : 'dos bags'} ${falta.join(', ')} (0 se ele ficou vazio).`);
+        if (!saiu) return setErro('Pelo menos um bag precisa sair com peso.');
+        if (saiu > entrou) return setErro(`No total saiu mais do que entrou (${kg(entrou)}).`);
       }
     }
     if (passo === 1 && somaPerdas > quebra) return setErro(`As perdas somam ${kg(somaPerdas)}, mas a quebra foi de ${kg(quebra)}.`);
@@ -812,9 +814,11 @@ export function FinalizarBags({proc, onClose}) {
         entrada: x.entrada,
         saida: fim,
         operador: x.operador,
-        destino: separa ? 'separado' : x.proxima ? 'proxima' : 'estoque'
+        destino: separa ? 'separado' : !n(x.saida) ? 'juntado' : x.proxima ? 'proxima' : 'estoque'
       }));
-      const obtido = separa ? null : bags.reduce((s, x) => s + x.pesoSaida, 0);
+      // Bags of different lots mix in the machine, so one lot's bags may come out with another's
+      // material. Each lot is credited with the process yield on what it put in.
+      const obtido = separa ? null : umLote ? bags.reduce((s, x) => s + x.pesoSaida, 0) : Math.round(usado * (saiu / entrou));
       let separacao;
       if (separa) {
         const feito = lotesFilhos({itens, lote, proc, restante: minhas[0].rota.slice(minhas[0].etapa + 1), usados, apontamento: id});
@@ -908,12 +912,12 @@ export function FinalizarBags({proc, onClose}) {
                         if (prox) prox.focus();
                         else e.currentTarget.blur();
                       }}
-                      placeholder="0"
+                      placeholder="—"
                       aria-label={`Peso de saída do bag ${x.n}`}
                     />
                     <span className="scale-unit">kg</span>
                   </span>
-                  <span className="saida-destino">{x.proxima ? title(x.proxima) : 'Estoque'}</span>
+                  <span className="saida-destino">{String(x.saida).trim() !== '' && !n(x.saida) ? 'Vazio · juntado' : x.proxima ? title(x.proxima) : 'Estoque'}</span>
                 </div>
               ))}
               <div className="saida-bag saida-total">
@@ -985,7 +989,7 @@ export function FinalizarBags({proc, onClose}) {
             <div className="bags-lista-curta">
               {linhas.map(x => (
                 <span key={x.bag}>
-                  Bag {x.n} · {kg(x.peso)} → {kg(n(x.saida))} · {hours(tempoNaMaquina(x.entrada, null, proc.pausas, agora))} na máquina
+                  Bag {x.n} · {kg(x.peso)} → {n(x.saida) ? kg(n(x.saida)) : 'vazio, juntado aos outros'} · {hours(tempoNaMaquina(x.entrada, null, proc.pausas, agora))} na máquina
                 </span>
               ))}
             </div>
