@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {useStore} from '../state/store.jsx';
 import {Icon} from './Icon.jsx';
 import {Logo} from './Logo.jsx';
+import {Notificacoes} from './Notificacoes.jsx';
 import {Menu, MenuDivider, MenuItem} from './Menu.jsx';
 import {VERSION} from '../version.js';
 import {dadosDoPerfil, noChaoDeFabrica, veAPagina} from '../state/perfis.js';
@@ -13,7 +14,7 @@ const GROUPS = [
     items: [
       {id: 'crm', label: 'Funil de vendas', icon: 'filter'},
       {id: 'crmempresas', label: 'Empresas', icon: 'factory'},
-      {id: 'crmatividades', label: 'Atividades', icon: 'bell'},
+      {id: 'crmatividades', label: 'Atividades', icon: 'calendar'},
       {id: 'crmhistorico', label: 'Histórico de atividades', icon: 'layers'},
       {id: 'crmindicadores', label: 'Indicadores de vendas', icon: 'chart'}
     ]
@@ -22,6 +23,7 @@ const GROUPS = [
     title: 'Monitoramento',
     items: [
       {id: 'painel', label: 'Painel', icon: 'home'},
+      {id: 'estoquegeral', label: 'Estoque geral', icon: 'chart'},
       {id: 'pcp', label: 'Central do PCP', icon: 'bell'},
       {id: 'mapa', label: 'Mapa do lote', icon: 'flow'},
       {id: 'lotes', label: 'Lotes', icon: 'layers'},
@@ -173,6 +175,7 @@ export function Header({page, onGo}) {
         <span className="topbar-spacer" />
         <ResumoFabrica />
         <Relogio />
+        <Notificacoes onGo={onGo} />
         <PerfilMenu />
       </header>
       <aside className="sidebar">

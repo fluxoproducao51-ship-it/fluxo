@@ -2,8 +2,8 @@ import {useEffect, useMemo, useState} from 'react';
 import {useStore} from '../state/store.jsx';
 import {date, hours, kg, pct, title, today} from '../state/data.js';
 import {
-  MOTIVOS_PERDA, ORIGENS, PORTES, RELACOES, SEGMENTOS, SITUACOES_EMPRESA, TIPOS_ATIVIDADE, TIPOS_NEGOCIO,
-  brl, estoquePorMaterial, plantaDoCliente, ponderadoDe, proximoPasso, tempoDeProducao, valorDe
+  MOTIVOS_PERDA, ORIGENS, RELACOES, SEGMENTOS, SITUACOES_EMPRESA, TIPOS_ATIVIDADE, TIPOS_NEGOCIO,
+  CONTATOS, DIAS_PARADO, brl, diasSemAtividade, estoquePorMaterial, passoDaEtapa, plantaDoCliente, ponderadoDe, proximoPasso, sinalDeGanho, tempoDeProducao, valorDe
 } from '../state/crm.js';
 import {sugerirRota} from '../state/rotas.js';
 import {Button} from '../ui/Button.jsx';
@@ -15,9 +15,9 @@ const numero = texto => {
   const n = Number(String(texto ?? '').replace(/\./g, '').replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : null;
 };
-const vazioParaNulo = texto => (String(texto ?? '').trim() ? String(texto).trim() : null);
+export const vazioParaNulo = texto => (String(texto ?? '').trim() ? String(texto).trim() : null);
 
-function Janela({titulo, onFechar, largura = 620, children}) {
+export function Janela({titulo, onFechar, largura = 620, children}) {
   useEffect(() => {
     const tecla = e => e.key === 'Escape' && onFechar();
     document.addEventListener('keydown', tecla);
@@ -39,7 +39,7 @@ function Janela({titulo, onFechar, largura = 620, children}) {
   );
 }
 
-function Campo({rotulo, largo, children}) {
+export function Campo({rotulo, largo, children}) {
   return (
     <label className={`field ${largo ? 'wide' : ''}`}>
       <span>{rotulo}</span>
@@ -48,7 +48,7 @@ function Campo({rotulo, largo, children}) {
   );
 }
 
-function Selecao({valor, onChange, opcoes, vazio = 'Selecione'}) {
+export function Selecao({valor, onChange, opcoes, vazio = 'Selecione'}) {
   const lista = Array.isArray(opcoes) ? opcoes.map(o => [o, o]) : Object.entries(opcoes);
   return (
     <select className="input" value={valor ?? ''} onChange={e => onChange(e.target.value)}>
@@ -59,6 +59,34 @@ function Selecao({valor, onChange, opcoes, vazio = 'Selecione'}) {
         </option>
       ))}
     </select>
+  );
+}
+
+// A list with "Outro" at the end: picking it opens a box to type any name. A saved name that is
+// not on the list (typed before, or from an older list) shows as "Outro" with the name filled in.
+function SelecaoComOutro({valor, onChange, opcoes, placeholder = 'Escreva o nome'}) {
+  const [outro, setOutro] = useState(() => Boolean(valor) && !opcoes.includes(valor));
+  return (
+    <div className="crm-outro">
+      <select
+        className="input"
+        value={outro ? '__outro' : valor ?? ''}
+        onChange={e => {
+          const v = e.target.value;
+          setOutro(v === '__outro');
+          onChange(v === '__outro' ? '' : v);
+        }}
+      >
+        <option value="">Selecione</option>
+        {opcoes.map(o => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+        <option value="__outro">Outro</option>
+      </select>
+      {outro && <input className="input" value={valor ?? ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} autoFocus />}
+    </div>
   );
 }
 
@@ -240,6 +268,7 @@ function LinhaAtividade({atividade, mostrarOrigem}) {
           {atividade.quantidadeKg ? ` · ${kg(atividade.quantidadeKg)}` : ''}
           {mostrarOrigem && negocio ? ` · ${negocio.titulo}` : ''}
           {mostrarOrigem && empresa ? ` · ${empresa.nome}` : ''}
+          {nota && atividade.descricao ? ` · ${atividade.descricao}` : ''}
         </small>
       </div>
       {mostrarOrigem && empresa && <button type="button" className="trail-link crm-abrir" onClick={() => go('crmempresas', {id: empresa.id})}>Abrir</button>}
@@ -253,9 +282,39 @@ function LinhaAtividade({atividade, mostrarOrigem}) {
 
 const ordemAtividades = (a, b) => Number(a.concluida) - Number(b.concluida) || (a.vencimento ?? '').localeCompare(b.vencimento ?? '');
 
+// The one step of the deal's stage. Only this button moves the deal; ordinary activities never do.
+function PassoDoFunil({negocio, valorAtual, antesDeConcluir}) {
+  const {crm, crmPasso} = useStore();
+  const passo = passoDaEtapa(negocio);
+  const [canal, setCanal] = useState('ligacao');
+  const [kgTexto, setKgTexto] = useState('');
+  const [erro, setErro] = useState(null);
+  if (!passo) return null;
+  const destino = crm.etapas.find(e => e.id === passo.vai)?.nome;
+  const concluir = () => {
+    if (passo.valor && !valorAtual) return setErro('Preencha quantidade e preço do negócio antes de enviar a proposta.');
+    antesDeConcluir?.();
+    crmPasso(negocio.id, {tipo: canal, quantidadeKg: parseKg(kgTexto)});
+    setErro(null);
+    setKgTexto('');
+  };
+  return (
+    <div className="crm-passo-funil">
+      <div className="crm-passo-texto">
+        <b>Próximo passo: {passo.titulo}</b>
+        <small>Ao concluir este passo, o negócio vai para "{destino}".</small>
+        {erro && <span className="wiz-err">{erro}</span>}
+      </div>
+      {passo.contato && <Selecao valor={canal} onChange={setCanal} opcoes={CONTATOS} vazio={null} />}
+      {passo.kg && <input className="input crm-kg" inputMode="numeric" value={kgTexto} onChange={e => setKgTexto(e.target.value)} placeholder="kg" aria-label="Peso da amostra" />}
+      <Button variant="primary" icon="check" label="Concluir passo" onClick={concluir} />
+    </div>
+  );
+}
+
 /* ---------- Deal form ---------- */
 
-function JanelaNegocio({inicial, onFechar}) {
+export function JanelaNegocio({inicial, onFechar}) {
   const {crm, crmSalvar, crmRemover, ativos, cadastro, cadastros} = useStore();
   const existente = crm.negocios.find(n => n.id === inicial.id);
   const [n, setN] = useState(() => ({
@@ -271,6 +330,13 @@ function JanelaNegocio({inicial, onFechar}) {
   const empresa = crm.empresas.find(e => e.id === n.empresaId);
   const contatos = crm.contatos.filter(c => c.empresaId === n.empresaId);
   const atividades = crm.atividades.filter(a => a.negocioId === n.id).sort(ordemAtividades);
+  const {lotes, envios} = useStore();
+  const ganho = existente ? sinalDeGanho(existente, {empresas: crm.empresas, lotes, envios}) : null;
+  // The funnel may move this deal while the window is open (an activity done here): follow it, so
+  // saving doesn't put it back.
+  useEffect(() => {
+    if (existente) setN(a => ({...a, etapaId: existente.etapaId}));
+  }, [existente?.etapaId]);
 
   const dados = () => {
     const {quantidadeTexto: _q, precoTexto: _p, ...limpo} = atual;
@@ -302,6 +368,12 @@ function JanelaNegocio({inicial, onFechar}) {
           <Button size="sm" label="Reabrir" onClick={() => salvar({situacao: 'aberto', fechadoEm: null, motivoPerda: null})} />
         </div>
       )}
+      {ganho && n.situacao === 'aberto' && (
+        <div className="crm-faixa sugestao">
+          {ganho}. Fechou o negócio?
+          <Button size="sm" variant="primary" icon="check" label="Marcar como ganho" onClick={ganhar} />
+        </div>
+      )}
       <div className="fields">
         <Campo rotulo="Título" largo>
           <input className="input" value={n.titulo ?? ''} onChange={e => set('titulo')(e.target.value)} placeholder="Ex.: ABS moído, 5 t por mês" autoFocus={!existente} />
@@ -330,11 +402,8 @@ function JanelaNegocio({inicial, onFechar}) {
         <Campo rotulo="Fechamento previsto">
           <input className="input" type="date" value={n.previsao ?? ''} onChange={e => set('previsao')(e.target.value)} />
         </Campo>
-        <Campo rotulo="Recorrência">
-          <Selecao valor={n.recorrencia} onChange={set('recorrencia')} opcoes={{unica: 'Compra única', mensal: 'Mensal'}} vazio={null} />
-        </Campo>
         <div className="field crm-total">
-          <span>Valor do negócio{n.recorrencia === 'mensal' ? ' por mês' : ''}</span>
+          <span>Valor do negócio</span>
           <b>{brl(valorDe(atual))}</b>
         </div>
         <Campo rotulo="Observações" largo>
@@ -348,12 +417,13 @@ function JanelaNegocio({inicial, onFechar}) {
       {existente && (
         <>
           <p className="label crm-sub">Atividades</p>
+          {n.situacao === 'aberto' && <PassoDoFunil negocio={existente} valorAtual={valorDe(atual)} antesDeConcluir={() => n.titulo?.trim() && n.empresaId && crmSalvar('negocios', {...dados(), etapaId: existente.etapaId})} />}
           <NovaAtividade empresaId={n.empresaId} negocioId={n.id} />
           <div className="crm-atividades">
             {atividades.map(a => (
               <LinhaAtividade key={a.id} atividade={a} />
             ))}
-            {!atividades.length && <p className="crm-alerta">Sem próximo passo definido para este negócio.</p>}
+            {!atividades.length && <p className="crm-alerta">Nenhuma atividade neste negócio ainda.</p>}
           </div>
         </>
       )}
@@ -412,13 +482,16 @@ const PASSOS = {
   atrasada: {rotulo: 'Atrasada', cor: 'var(--stop)'},
   hoje: {rotulo: 'Hoje', cor: 'var(--ok)'},
   futura: {rotulo: 'Agendada', cor: 'var(--subtle)'},
-  nenhum: {rotulo: 'Sem próximo passo', cor: 'var(--ready)'}
+  nenhum: {rotulo: 'Sem tarefa agendada', cor: 'var(--ready)'}
 };
 
 function CartaoNegocio({negocio, onAbrir}) {
-  const {crm} = useStore();
+  const {crm, lotes, envios} = useStore();
   const empresa = crm.empresas.find(e => e.id === negocio.empresaId);
   const passo = proximoPasso(negocio, crm.atividades);
+  const passoFunil = passoDaEtapa(negocio);
+  const parado = (diasSemAtividade(negocio, crm.atividades) ?? 0) > DIAS_PARADO;
+  const ganho = sinalDeGanho(negocio, {empresas: crm.empresas, lotes, envios});
   return (
     <button
       type="button"
@@ -438,6 +511,9 @@ function CartaoNegocio({negocio, onAbrir}) {
         <i /> {PASSOS[passo.estado].rotulo}
         {passo.atividade?.vencimento ? ` · ${date(passo.atividade.vencimento)}` : ''}
       </span>
+      {passoFunil && <span className="crm-falta">Próximo passo: <b>{passoFunil.titulo}</b></span>}
+      {parado && <span className="crm-parado">Parado há mais de {DIAS_PARADO} dias</span>}
+      {ganho && <span className="crm-sinal-ganho">Parece ganho: {ganho.toLowerCase()}</span>}
     </button>
   );
 }
@@ -464,6 +540,7 @@ export function CrmFunil() {
           <p className="page-sub">
             {abertos.length} negócios abertos · {brl(total)} · previsão ponderada {brl(ponderado)}
           </p>
+          <p className="page-sub crm-auto">Cada etapa tem um passo. Ao concluir o passo dentro do negócio, ele vai sozinho para a próxima etapa.</p>
         </div>
         <div className="page-actions">
           <div style={{width: 200}}>
@@ -520,7 +597,6 @@ const novaEmpresa = () => ({
   nome: '',
   cnpj: null,
   segmento: null,
-  porte: null,
   relacao: null,
   situacao: 'lead',
   cidade: null,
@@ -555,9 +631,8 @@ function JanelaEmpresa({inicial, onFechar, onCriada}) {
       uf: vazioParaNulo(e.uf)?.toUpperCase() ?? null,
       volumeMensalKg: parseKg(volumeTexto),
       relacao: e.relacao || null,
-      segmento: e.segmento || null,
-      porte: e.porte || null,
-      origem: e.origem || null,
+      segmento: e.segmento?.trim() || null,
+      origem: e.origem?.trim() || null,
       cidade: vazioParaNulo(e.cidade),
       telefone: vazioParaNulo(e.telefone),
       email: vazioParaNulo(e.email),
@@ -576,10 +651,9 @@ function JanelaEmpresa({inicial, onFechar, onCriada}) {
         </Campo>
         <Campo rotulo="CNPJ"><input className="input" value={e.cnpj ?? ''} onChange={entrada('cnpj')} inputMode="numeric" /></Campo>
         <Campo rotulo="Situação"><Selecao valor={e.situacao} onChange={set('situacao')} opcoes={SITUACOES_EMPRESA} vazio={null} /></Campo>
-        <Campo rotulo="Segmento"><Selecao valor={e.segmento} onChange={set('segmento')} opcoes={SEGMENTOS} /></Campo>
-        <Campo rotulo="Porte"><Selecao valor={e.porte} onChange={set('porte')} opcoes={PORTES} /></Campo>
+        <Campo rotulo="Segmento"><SelecaoComOutro valor={e.segmento} onChange={set('segmento')} opcoes={SEGMENTOS} placeholder="Nome do segmento" /></Campo>
         <Campo rotulo="Relação com a planta"><Selecao valor={e.relacao} onChange={set('relacao')} opcoes={RELACOES} /></Campo>
-        <Campo rotulo="Origem do contato"><Selecao valor={e.origem} onChange={set('origem')} opcoes={ORIGENS} /></Campo>
+        <Campo rotulo="Origem do contato"><SelecaoComOutro valor={e.origem} onChange={set('origem')} opcoes={ORIGENS} placeholder="De onde veio o contato" /></Campo>
         <Campo rotulo="Cidade"><input className="input" value={e.cidade ?? ''} onChange={entrada('cidade')} /></Campo>
         <Campo rotulo="UF"><input className="input" value={e.uf ?? ''} onChange={entrada('uf')} maxLength={2} /></Campo>
         <Campo rotulo="Telefone"><input className="input" value={e.telefone ?? ''} onChange={entrada('telefone')} inputMode="tel" /></Campo>
@@ -669,7 +743,6 @@ function EmpresaDetalhe({id, onVoltar}) {
   const ficha = [
     ['CNPJ', empresa.cnpj],
     ['Segmento', empresa.segmento],
-    ['Porte', empresa.porte],
     ['Relação', RELACOES[empresa.relacao]],
     ['Origem', empresa.origem],
     ['Local', [empresa.cidade, empresa.uf].filter(Boolean).join(' / ')],
@@ -799,7 +872,7 @@ export function CrmEmpresas({initial}) {
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome, CNPJ ou cidade" aria-label="Buscar empresa" />
         </label>
         <div style={{width: 180}}><Selecao valor={situacao} onChange={setSituacao} opcoes={SITUACOES_EMPRESA} vazio="Todas as situações" /></div>
-        <div style={{width: 200}}><Selecao valor={segmento} onChange={setSegmento} opcoes={SEGMENTOS} vazio="Todos os segmentos" /></div>
+        <div style={{width: 200}}><Selecao valor={segmento} onChange={setSegmento} opcoes={[...new Set([...SEGMENTOS, ...crm.empresas.map(x => x.segmento).filter(Boolean)])]} vazio="Todos os segmentos" /></div>
       </div>
       <div className="dtable-wrap">
         <table className="dtable">
@@ -840,42 +913,6 @@ export function CrmEmpresas({initial}) {
 }
 
 /* ---------- Activities ---------- */
-
-export function CrmAtividades() {
-  const {crm} = useStore();
-  const hoje = today();
-  const abertas = crm.atividades.filter(a => !a.concluida).sort(ordemAtividades);
-  const grupos = [
-    {titulo: 'Atrasadas', lista: abertas.filter(a => a.vencimento && a.vencimento < hoje)},
-    {titulo: 'Hoje', lista: abertas.filter(a => a.vencimento === hoje)},
-    {titulo: 'Próximas', lista: abertas.filter(a => a.vencimento > hoje)},
-    {titulo: 'Sem data', lista: abertas.filter(a => !a.vencimento)}
-  ];
-  const semPasso = crm.negocios.filter(n => n.situacao === 'aberto' && proximoPasso(n, crm.atividades).estado === 'nenhum');
-  return (
-    <main className="page">
-      <div>
-        <h1 className="page-title">Atividades</h1>
-        <p className="page-sub">O que fazer hoje para os negócios andarem.</p>
-      </div>
-      {semPasso.length > 0 && (
-        <div className="sem-rota">
-          <b>{semPasso.length} {semPasso.length === 1 ? 'negócio sem' : 'negócios sem'} próximo passo:</b> {semPasso.slice(0, 5).map(n => n.titulo).join(', ')}
-          {semPasso.length > 5 ? '…' : ''}
-        </div>
-      )}
-      {grupos.filter(g => g.lista.length).map(g => (
-        <section key={g.titulo}>
-          <SectionHeader title={`${g.titulo} (${g.lista.length})`} />
-          <div className="crm-atividades panel">
-            {g.lista.map(a => <LinhaAtividade key={a.id} atividade={a} mostrarOrigem />)}
-          </div>
-        </section>
-      ))}
-      {!abertas.length && <div className="painel-empty panel">Nenhuma atividade em aberto.</div>}
-    </main>
-  );
-}
 
 /* ---------- Activity history ---------- */
 

@@ -2,6 +2,7 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useReducer, 
 import {computeBalances, filaDe, statusFrom} from './balance.js';
 import {aoMudar, carregarTudo, diferencas, gravar, mensagemDeErro, supabase} from './banco.js';
 import {semLote} from './excluir.js';
+import {concluirPasso} from './crm.js';
 
 const MAQUINA_KEY = 'fluxo:maquina';
 
@@ -160,12 +161,14 @@ function reducer(state, action) {
       return {...state, maquina: action.maquina};
     case 'crmSalvar': {
       const lista = state.crm[action.colecao];
-      const existe = lista.some(i => i.id === action.item.id);
-      return {
-        ...state,
-        crm: {...state.crm, [action.colecao]: existe ? lista.map(i => (i.id === action.item.id ? {...i, ...action.item} : i)) : [...lista, action.item]}
-      };
+      const antes = lista.find(i => i.id === action.item.id);
+      // Kept in memory only (the database stamps its own): lets "days without activity" count new items.
+      const item = antes ? action.item : {criadoEm: new Date().toISOString(), ...action.item};
+      const crm = {...state.crm, [action.colecao]: antes ? lista.map(i => (i.id === item.id ? {...i, ...item} : i)) : [...lista, item]};
+      return {...state, crm};
     }
+    case 'crmPasso':
+      return {...state, crm: concluirPasso(state.crm, action.negocioId, action.extra)};
     case 'crmRemover': {
       const {crm} = state;
       const fora = i => i.id !== action.id;
@@ -303,6 +306,7 @@ export function StoreProvider({children, perfil, inicial}) {
         dispatch({type: 'maquina', maquina});
       },
       crmSalvar: (colecao, item) => dispatch({type: 'crmSalvar', colecao, item}),
+      crmPasso: (negocioId, extra) => dispatch({type: 'crmPasso', negocioId, extra}),
       crmRemover: (colecao, id) => dispatch({type: 'crmRemover', colecao, id}),
       recarregarDados: recarregar,
       sair: () => supabase.auth.signOut(),

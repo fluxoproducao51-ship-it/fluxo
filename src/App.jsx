@@ -15,19 +15,21 @@ import {Lotes} from './pages/Lotes.jsx';
 import {Relatorios} from './pages/Relatorios.jsx';
 import {Apontar} from './pages/Apontar.jsx';
 import {Estoque} from './pages/Estoque.jsx';
+import {EstoqueGeral} from './pages/EstoqueGeral.jsx';
 import {Misturas} from './pages/Misturas.jsx';
 import {Cadastros, MateriaisPagina, RotasPagina} from './pages/Cadastros.jsx';
 import {dadosDoPerfil, noChaoDeFabrica, veAPagina} from './state/perfis.js';
 import {Acesso} from './ui/Acesso.jsx';
 import {Usuarios} from './pages/Usuarios.jsx';
-import {CrmAtividades, CrmEmpresas, CrmFunil, CrmHistorico, CrmIndicadores} from './pages/Crm.jsx';
+import {CrmEmpresas, CrmFunil, CrmHistorico, CrmIndicadores} from './pages/Crm.jsx';
+import {CrmCalendario} from './pages/CrmCalendario.jsx';
 
 const SCREENS = {
   painel: Painel,
   usuarios: Usuarios,
   crm: CrmFunil,
   crmempresas: CrmEmpresas,
-  crmatividades: CrmAtividades,
+  crmatividades: CrmCalendario,
   crmhistorico: CrmHistorico,
   crmindicadores: CrmIndicadores,
   pcp: Pcp,
@@ -43,6 +45,7 @@ const SCREENS = {
   andamento: Apontar,
   lancamentos: Apontar,
   estoque: Estoque,
+  estoquegeral: EstoqueGeral,
   lotes: Lotes,
   relatorios: Relatorios,
   misturas: Misturas,
